@@ -1,0 +1,664 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&display=swap') layer(base);
+
+@import 'tailwindcss';
+
+/* TailAdmin design tokens (from TailAdmin/vue-tailwind-admin-dashboard) */
+@theme {
+  /* Cairo covers Arabic and Latin, so one family serves the whole UI. */
+  --font-cairo: Cairo, sans-serif;
+  --font-sans: Cairo, sans-serif;
+
+  --text-title-sm: 30px;
+  --text-title-sm--line-height: 38px;
+  --text-title-md: 36px;
+  --text-title-md--line-height: 44px;
+  --text-theme-xl: 20px;
+  --text-theme-xl--line-height: 30px;
+  --text-theme-sm: 14px;
+  --text-theme-sm--line-height: 20px;
+  --text-theme-xs: 12px;
+  --text-theme-xs--line-height: 18px;
+
+  --color-brand-25: #f2f7ff;
+  --color-brand-50: #ecf3ff;
+  --color-brand-100: #dde9ff;
+  --color-brand-200: #c2d6ff;
+  --color-brand-300: #9cb9ff;
+  --color-brand-400: #7592ff;
+  --color-brand-500: #465fff;
+  --color-brand-600: #3641f5;
+  --color-brand-700: #2a31d8;
+  --color-brand-800: #252dae;
+  --color-brand-900: #262e89;
+  --color-brand-950: #161950;
+
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+
+  --color-error-50: #fef3f2;
+  --color-error-100: #fee4e2;
+  --color-error-300: #fda29b;
+  --color-error-500: #f04438;
+  --color-error-600: #d92d20;
+  --color-error-700: #b42318;
+
+  --color-warning-50: #fffaeb;
+  --color-warning-500: #f79009;
+  --color-warning-700: #b54708;
+
+  --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-theme-sm: 0px 1px 3px 0px rgba(16, 24, 40, 0.1), 0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+  --shadow-theme-md: 0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-theme-lg: 0px 12px 16px -4px rgba(16, 24, 40, 0.08), 0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-theme-xl: 0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+  --shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+}
+
+/*
+ * Semantic surfaces. Components reference these rather than fixed greys, so one
+ * block below flips the whole interface to dark without touching each file.
+ */
+:root {
+  --app-bg: #f9fafb;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f9fafb;
+  --app-surface-raised: #ffffff;
+  --app-border: #e4e7ec;
+  --app-border-strong: #d0d5dd;
+  --app-text: #1d2939;
+  --app-text-strong: #101828;
+  --app-text-muted: #667085;
+  --app-accent: #465fff;
+  --app-accent-soft: #eef2ff;
+  --app-danger: #f04438;
+  --app-danger-strong: #b42318;
+  --app-danger-text: #b42318;
+  --app-danger-soft: #fef3f2;
+  --app-warn-soft: #fffaeb;
+  --app-warn-border: #fec84b;
+  --app-warn-text: #93370d;
+  --app-good-soft: #dcfae6;
+  --app-good-text: #067647;
+}
+
+.dark {
+  /*
+   * Tailwind v4 compiles utilities down to these custom properties, so
+   * inverting the ramp here re-themes every bg-white / text-gray-800 /
+   * border-gray-200 in the app at once instead of editing each class.
+   */
+  --color-white: #161d2b;
+  --color-gray-25: #0c111d;
+  --color-gray-50: #1d2939;
+  --color-gray-100: #24304a;
+  --color-gray-200: #2b3546;
+  --color-gray-300: #3a465c;
+  --color-gray-400: #8d97a8;
+  --color-gray-500: #aab2c0;
+  --color-gray-600: #c6ccd6;
+  --color-gray-700: #dde1e8;
+  --color-gray-800: #eef0f4;
+  --color-gray-900: #f9fafb;
+  --color-gray-950: #ffffff;
+
+  /* Soft tint backgrounds have to darken too, or they glow white. */
+  --color-brand-50: #1e2a52;
+  --color-brand-100: #24326b;
+  --color-success-50: #10331f;
+  --color-success-100: #164430;
+  --color-error-50: #3b1a18;
+  --color-error-100: #4a201d;
+  --color-warning-50: #3a2a12;
+
+  --app-bg: #0c111d;
+  --app-surface: #161d2b;
+  --app-surface-muted: #1d2939;
+  --app-surface-raised: #1d2939;
+  --app-border: #2b3546;
+  --app-border-strong: #3a465c;
+  --app-text: #e4e7ec;
+  --app-text-strong: #f9fafb;
+  --app-text-muted: #98a2b3;
+  --app-accent: #7592ff;
+  --app-accent-soft: #1e2a52;
+  --app-danger: #f04438;
+  --app-danger-strong: #f97066;
+  --app-danger-text: #fda29b;
+  --app-danger-soft: #3b1a18;
+  --app-warn-soft: #3a2a12;
+  --app-warn-border: #b54708;
+  --app-warn-text: #fedf89;
+  --app-good-soft: #10331f;
+  --app-good-text: #75e0a7;
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--app-border);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  body {
+    @apply font-cairo text-theme-sm antialiased;
+    background: var(--app-bg);
+    color: var(--app-text);
+    margin: 0;
+  }
+
+  /* Form controls and buttons do not inherit the body font by default. */
+  input, select, textarea, button, table {
+    font-family: inherit;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-semibold;
+    color: var(--app-text-strong);
+    margin: 0;
+  }
+
+  h2 { @apply text-theme-xl; }
+  h3 { @apply text-base; }
+
+  p { margin: 0; }
+
+  label {
+    @apply flex flex-col gap-1.5 text-theme-sm font-medium;
+    color: var(--app-text);
+  }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    @apply h-11 w-full rounded-lg border px-4 py-2.5 text-theme-sm font-normal shadow-theme-xs outline-none transition placeholder:text-gray-400;
+    border-color: var(--app-border-strong);
+    background: var(--app-surface);
+    color: var(--app-text);
+  }
+
+  /* The native arrow and calendar glyphs are black bitmaps in dark mode. */
+  .dark select,
+  .dark input[type='date'] {
+    color-scheme: dark;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):focus,
+  select:focus,
+  textarea:focus {
+    @apply border-brand-300;
+    box-shadow: var(--shadow-focus-ring);
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    @apply size-4 accent-brand-500;
+  }
+
+  button {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50;
+    border: none;
+  }
+
+  table {
+    @apply w-full border-collapse;
+    min-width: 720px;
+  }
+
+  th {
+    @apply px-5 py-3 text-start text-theme-xs font-medium uppercase tracking-wide border-b;
+    color: var(--app-text-muted);
+    border-color: var(--app-border);
+    background: var(--app-surface-muted);
+  }
+
+  td {
+    @apply px-5 py-3.5 text-start text-theme-sm border-b;
+    color: var(--app-text);
+    border-color: var(--app-border);
+  }
+
+  tbody tr:hover { background: var(--app-surface-muted); }
+  tbody tr:last-child td { border-bottom: none; }
+}
+
+@layer components {
+  /* ============ buttons ============ */
+  button.secondary {
+    background: var(--app-surface);
+    color: var(--app-text);
+    box-shadow: inset 0 0 0 1px var(--app-border-strong), var(--shadow-theme-xs);
+  }
+
+  button.secondary:hover { background: var(--app-surface-muted); }
+
+  button.danger {
+    background: var(--app-surface);
+    color: var(--app-danger-text);
+    box-shadow: inset 0 0 0 1px var(--app-danger), var(--shadow-theme-xs);
+  }
+
+  button.danger:hover { background: var(--app-danger-soft); }
+
+  button.compact {
+    @apply px-3 py-1.5 text-theme-xs;
+  }
+
+  button.chip {
+    @apply rounded-full bg-brand-50 px-3.5 py-1.5 text-theme-xs font-medium text-brand-600 shadow-none hover:bg-brand-100;
+  }
+
+  /* ============ app shell ============ */
+  .app-shell { @apply min-h-screen; }
+
+  /* ---- login ---- */
+  .login-shell {
+    @apply grid min-h-screen bg-white lg:grid-cols-2;
+  }
+
+  .login-hero {
+    @apply hidden flex-col items-center justify-center gap-4 bg-brand-950 px-14 text-center lg:flex;
+  }
+
+  .login-hero h1 { @apply text-title-sm text-white; }
+  .login-hero .summary { @apply max-w-[400px] text-theme-sm leading-6 text-gray-400; }
+  .login-hero .eyebrow { @apply text-theme-xs font-semibold uppercase tracking-widest text-brand-300; }
+
+  .login-logo {
+    @apply mb-2 size-36 rounded-full bg-white/95 object-contain p-2 shadow-theme-xl;
+  }
+
+  .auth-panel {
+    @apply m-auto flex w-full flex-col gap-5 px-6 py-12 sm:max-w-md;
+  }
+
+  .form-heading { @apply flex items-center justify-between; }
+  .form-heading h2 { @apply text-title-sm text-gray-800; }
+
+  .demo-buttons {
+    @apply flex flex-wrap items-center gap-2 border-t border-gray-100 pt-5 text-theme-xs text-gray-500;
+  }
+
+  /* ---- frame: sidebar + dashboard ---- */
+  .app-frame {
+    @apply flex min-h-screen items-stretch max-lg:flex-col;
+  }
+
+  .sidebar {
+    @apply sticky top-0 flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-e border-gray-200 bg-white px-5 pb-6 max-lg:static max-lg:h-auto max-lg:w-full max-lg:border-e-0 max-lg:border-b;
+    scrollbar-width: thin;
+  }
+
+  .side-brand {
+    @apply flex items-center gap-3 py-6;
+  }
+
+  .side-brand img { @apply size-11 shrink-0 object-contain; }
+  .side-brand strong { @apply text-base font-bold leading-5 text-gray-800; }
+  .side-brand small { @apply block text-theme-xs font-normal text-gray-400; }
+
+  .brand-mark {
+    @apply flex size-12 items-center justify-center rounded-xl bg-brand-500 text-theme-xl font-bold text-white;
+  }
+
+  .brand-mark.small { @apply size-10 rounded-lg text-base; }
+
+  .tabs {
+    @apply flex flex-1 flex-col gap-1;
+  }
+
+  .tabs > button,
+  .tab-parent,
+  .tab-submenu > button {
+    @apply relative flex w-full items-center justify-start gap-3 rounded-lg bg-transparent px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-none hover:bg-gray-100 hover:text-gray-800;
+  }
+
+  .tabs > button.active,
+  .tab-parent.active,
+  .tab-submenu > button.active {
+    @apply bg-brand-50 text-brand-500 hover:bg-brand-50;
+  }
+
+  .tab-dot {
+    @apply size-1.5 shrink-0 rounded-full bg-gray-300 transition;
+  }
+
+  button.active .tab-dot { @apply bg-brand-500; }
+
+  /* The icon carries the meaning, so it takes the accent colour when active. */
+  .tab-icon {
+    @apply shrink-0 text-gray-400 transition-transform duration-200;
+  }
+
+  button.active .tab-icon { @apply text-brand-500; }
+  .tabs > button:hover .tab-icon,
+  .tab-parent:hover .tab-icon { transform: scale(1.12); }
+
+  /* Points down when the group is open, sideways when closed. */
+  .tab-caret {
+    @apply ms-auto shrink-0 text-gray-400;
+    transition: transform 0.22s ease;
+    transform: rotate(-90deg);
+  }
+
+  .tab-caret.open { transform: rotate(0deg); }
+
+  .tab-group { @apply flex flex-col gap-1; }
+
+  .tab-submenu {
+    @apply ms-4 flex flex-col gap-1 border-s border-gray-200 ps-3;
+  }
+
+  .side-user {
+    @apply mt-6 grid gap-0.5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5;
+  }
+
+  .side-user span { @apply text-theme-xs text-gray-400; }
+  .side-user strong { @apply text-theme-sm text-gray-800; }
+  .side-user small { @apply text-theme-xs font-medium uppercase tracking-wide text-brand-500; }
+
+  .dashboard { @apply min-w-0 flex-1; }
+
+  .topbar {
+    @apply sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-6 py-4;
+  }
+
+  .topbar h2 { @apply text-theme-xl font-semibold text-gray-800; }
+
+  .eyebrow {
+    @apply text-theme-xs font-medium uppercase tracking-widest text-gray-400;
+  }
+
+  .topbar-actions { @apply flex flex-wrap items-center gap-2.5; }
+
+  .search-input {
+    @apply bg-gray-50;
+    width: min(300px, 60vw);
+  }
+
+  .status {
+    @apply inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-1 text-theme-xs font-medium text-success-600;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-theme-xs font-medium text-brand-500;
+  }
+
+  .badge.danger { @apply bg-error-50 text-error-600; }
+
+  /* ============ content ============ */
+  .workspace { @apply grid gap-5 p-6; }
+
+  .muted { @apply text-theme-sm font-normal; color: var(--app-text-muted); }
+  .empty { @apply p-6; }
+
+  .notice {
+    @apply rounded-lg border px-4 py-3 text-theme-sm font-medium;
+  }
+
+  .notice.success { @apply border-success-100 bg-success-50 text-success-700; }
+  .notice.error { @apply border-error-100 bg-error-50 text-error-700; }
+  .notice.warn { @apply border-warning-500/30 bg-warning-50 text-warning-700; }
+  /* The school is looking at a year it no longer works in — hard to miss on purpose. */
+  .notice.past-year { @apply border-warning-500/40 bg-warning-50 text-warning-700; }
+
+  .crud-form {
+    @apply grid items-end gap-4 rounded-2xl border border-gray-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-gray-200 bg-white;
+  }
+
+  .list-toolbar { @apply flex flex-wrap items-end gap-3; }
+  .list-toolbar label { @apply min-w-44; }
+
+  .panel {
+    @apply grid gap-4 rounded-2xl border border-gray-200 bg-white p-5;
+  }
+
+  .form-card {
+    @apply grid gap-4 rounded-2xl border border-gray-200 bg-white p-5;
+  }
+
+  .form-card.required-card { @apply border-brand-200 bg-brand-25; }
+
+  .form-grid {
+    @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .student-form { @apply grid gap-5; }
+  .student-form > button[type='submit'] { @apply justify-self-start px-6; }
+
+  .edit-panel { @apply rounded-2xl border border-brand-200 bg-white p-5; }
+
+  .required-star { @apply text-error-500; }
+
+  label.field-error input,
+  label.field-error select {
+    @apply border-error-300;
+    box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.08);
+  }
+
+  .checkbox-label {
+    @apply flex-row items-center gap-2 self-end py-3;
+  }
+
+  .readonly-input { @apply bg-gray-100 text-gray-500; }
+
+  .permission-card {
+    @apply grid gap-4 rounded-2xl border border-gray-200 bg-white p-5;
+  }
+
+  .permission-card-header {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .permission-list { @apply grid gap-2 sm:grid-cols-2 lg:grid-cols-3; }
+  .permission-list label { @apply flex-row items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 font-normal; }
+
+  .staff-permission-grid { @apply grid gap-4; }
+
+  .stats-grid { @apply grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4; }
+
+  .stat-card {
+    @apply grid gap-2 rounded-2xl border border-gray-200 bg-white p-5;
+  }
+
+  .stat-card span { @apply text-theme-xs font-medium uppercase tracking-wide text-gray-400; }
+  .stat-card strong { @apply text-title-sm font-bold; }
+  .stat-blue strong { @apply text-brand-500; }
+  .stat-violet strong { color: #7a5af8; }
+  .stat-green strong { @apply text-success-500; }
+  .stat-rose strong { color: #ee46bc; }
+  .stat-amber strong { color: #b54708; }
+
+  .dashboard-header {
+    @apply flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-5;
+  }
+
+  .report-panel { @apply grid gap-5; }
+
+  .details-grid { @apply grid gap-2 sm:grid-cols-2; }
+  .details-grid p { @apply rounded-lg bg-gray-50 px-3 py-2 text-theme-sm text-gray-700; }
+
+  .student-course-grid { @apply grid gap-4 xl:grid-cols-2; }
+
+  .summary { @apply text-theme-sm text-gray-500; }
+
+  /* ---- modal ---- */
+  .modal-backdrop {
+    /* A fixed dim rather than a grey token: the ramp inverts in dark mode and
+       would turn this scrim white. */
+    @apply fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm;
+    background: rgb(16 24 40 / 55%);
+  }
+
+  .student-modal {
+    @apply grid max-h-[88vh] w-[min(860px,100%)] gap-4 overflow-auto rounded-2xl bg-white p-6 shadow-theme-xl;
+  }
+
+  .subjects-modal { @apply w-[min(680px,100%)]; }
+
+  .subject-count {
+    @apply rounded-full bg-brand-50 px-2.5 py-1 text-theme-xs font-bold text-brand-500;
+  }
+
+  .pill { @apply whitespace-nowrap rounded-full px-2.5 py-1 text-theme-xs font-bold; }
+  .pill-success { @apply bg-success-50 text-success-700; }
+
+  /* ---- misc widgets ---- */
+  .hidden-file-input { display: none; }
+
+  .excel-upload-card {
+    @apply flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-brand-300 bg-brand-25 p-5 transition hover:bg-brand-50;
+  }
+
+  .excel-upload-icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-success-500 text-theme-xs font-bold text-white;
+  }
+
+  .sibling-results { @apply grid gap-2; }
+
+  .sibling-card {
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3;
+  }
+
+  .selected-siblings { @apply grid gap-2 rounded-xl border border-brand-100 bg-brand-25 p-4; }
+  .selected-sibling { @apply flex items-center justify-between gap-3 text-theme-sm; }
+
+  .students-row { @apply flex flex-wrap gap-1.5; }
+
+  .student-name-list { @apply flex flex-wrap gap-1.5; }
+
+  .student-name-button {
+    @apply rounded-full bg-gray-100 px-3 py-1 text-theme-xs font-medium text-gray-700 shadow-none hover:bg-brand-50 hover:text-brand-600;
+  }
+
+  .parent-login-card { @apply bg-warning-50/60 border-warning-50; }
+
+  .bulk-course-list { @apply grid gap-2; }
+  .bulk-course-row { @apply flex flex-wrap items-end gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3; }
+  .course-code { @apply text-theme-xs text-gray-400; }
+  .course-materials-list { @apply grid gap-1.5; }
+  .course-materials-row { @apply flex flex-wrap items-center gap-2; }
+  .course-material-item { @apply flex flex-wrap items-center gap-3 rounded-xl bg-gray-100 px-4 py-2 text-theme-sm; }
+  .course-item-actions { @apply ms-auto flex gap-2; }
+
+  /* Subjects waiting to be attached to a class. */
+  /* Choosing which classes a list of subjects goes into. */
+  .section-picker { @apply sm:col-span-2 lg:col-span-3; }
+
+  .orphan-list { @apply grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3; }
+  .orphan-list .checkbox-label { @apply flex items-center gap-2 rounded-xl bg-gray-100 px-4 py-2 text-theme-sm; }
+
+  .add-class-button,
+  .add-course-button { @apply px-3 py-1.5 text-theme-xs; }
+
+  .remove-course-button {
+    @apply bg-transparent p-1 text-error-500 shadow-none hover:bg-error-50;
+  }
+
+  .actions { @apply flex flex-wrap items-center gap-3; }
+
+  .home-empty { @apply min-h-40; }
+}
+
+/* RTL fine-tuning: logical properties flip layout automatically */
+/* A closed group points away from the text, which is the other way round in RTL. */
+.rtl .tab-caret { transform: rotate(90deg); }
+.rtl .tab-caret.open { transform: rotate(0deg); }
+
+/* ============ motion ============
+   Short, and every one of them is skipped for anyone who asks for less. */
+
+/* Sidebar groups fade and slide rather than snapping into place.
+   Deliberately no max-height: it reads 0 in both the enter-from and leave-to
+   states, so nothing would actually change during a leave, no transitionend
+   would fire, and Vue would never unmount the element. */
+.submenu-enter-active,
+.submenu-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  overflow: hidden;
+}
+
+.submenu-enter-from,
+.submenu-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Panels and cards arrive with a small lift as a page loads. */
+.workspace > * {
+  animation: rise 0.28s ease both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The confirmation dialog grows from the middle so it reads as an interruption. */
+.confirm-card,
+.student-modal {
+  animation: pop 0.18s ease both;
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-backdrop,
+.confirm-backdrop {
+  animation: fade 0.16s ease both;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Rows and buttons respond to the pointer. */
+tbody tr { transition: background-color 0.15s ease; }
+
+button { transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease; }
+button:active:not(:disabled) { transform: scale(0.97); }
+
+.stat-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.stat-card:hover { transform: translateY(-2px); }
+
+/* Motion is decoration here; anyone who has asked the system to reduce it gets none. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@layer components {
+  .heading-actions { @apply flex items-center gap-2; }
+}

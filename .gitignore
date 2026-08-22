@@ -1,0 +1,30 @@
+# Defence in depth: backend/ and frontend/ each carry their own ignore rules,
+# and these repeat the ones that matter most in case a stray copy of a secret
+# or of the school's data is ever dropped somewhere else in the tree.
+
+# Credentials and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*service-account*.json
+
+# The school's data: never in version control
+*.sqlite
+*.sqlite3
+*.sql
+*.sql.gz
+
+# Dependencies and build output
+/node_modules
+/vendor
+
+# Editors and machines
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude Code machine-local settings
+.claude/settings.local.json
