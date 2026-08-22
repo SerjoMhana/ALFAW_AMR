@@ -29,21 +29,41 @@ class CredentialSlipController extends Controller
     {
         abort_unless($user->user_type === 'teacher', 404);
 
-        return $this->render($request, collect([$this->slips->forTeacher($user)]), 'teacher-'.$user->id);
+        return $this->render(
+            $request,
+            collect([$this->slips->forTeacher($user, $this->knownPassword($request))]),
+            'teacher-'.$user->id,
+        );
+    }
+
+    /**
+     * Any account: staff and administrators need a slip as much as a teacher.
+     */
+    public function user(Request $request, User $user): Response
+    {
+        return $this->render(
+            $request,
+            collect([$this->slips->forTeacher($user, $this->knownPassword($request))]),
+            'user-'.$user->id,
+        );
     }
 
     public function student(Request $request, StudentProfile $studentProfile): Response
     {
         return $this->render(
             $request,
-            collect([$this->slips->forStudent($studentProfile)]),
+            collect([$this->slips->forStudent($studentProfile, $this->knownPassword($request))]),
             'student-'.($studentProfile->admission_no ?: $studentProfile->id),
         );
     }
 
     public function guardian(Request $request, ParentGuardian $parent): Response
     {
-        return $this->render($request, collect([$this->slips->forGuardian($parent)]), 'guardian-'.$parent->id);
+        return $this->render(
+            $request,
+            collect([$this->slips->forGuardian($parent, $this->knownPassword($request))]),
+            'guardian-'.$parent->id,
+        );
     }
 
     /**
@@ -56,6 +76,19 @@ class CredentialSlipController extends Controller
         abort_if($slips->isEmpty(), 422, 'لا يوجد طلبة بحسابات في هذا الفصل.');
 
         return $this->render($request, $slips, 'class-'.($courseSection->class_name ?: $courseSection->id));
+    }
+
+    /**
+     * A password the office has just set, to be printed as it stands rather
+     * than replaced. Absent, the slip carries a newly generated one.
+     */
+    private function knownPassword(Request $request): ?string
+    {
+        $validated = $request->validate([
+            'password' => ['nullable', 'string', 'max:1024'],
+        ]);
+
+        return $validated['password'] ?? null;
     }
 
     /**

@@ -74,7 +74,7 @@ class CredentialSlipTest extends TestCase
         $teacher = $this->user('teacher', 'hana@school.test', 'HANA');
 
         $response = $this->withUser($this->admin)
-            ->get("/api/credential-slips/teachers/{$teacher->id}?locale=ar");
+            ->postJson("/api/credential-slips/teachers/{$teacher->id}?locale=ar");
 
         $response->assertOk();
         $this->assertSame('application/pdf', $response->headers->get('content-type'));
@@ -87,7 +87,7 @@ class CredentialSlipTest extends TestCase
 
         foreach (['ar', 'en'] as $locale) {
             $this->withUser($this->admin)
-                ->get("/api/credential-slips/teachers/{$teacher->id}?locale={$locale}")
+                ->postJson("/api/credential-slips/teachers/{$teacher->id}?locale={$locale}")
                 ->assertOk();
         }
 
@@ -109,7 +109,7 @@ class CredentialSlipTest extends TestCase
         $this->assertNotSame($slips[0]['password'], $slips[1]['password']);
 
         $this->withUser($this->admin)
-            ->get("/api/credential-slips/classes/{$section->id}?locale=ar")
+            ->postJson("/api/credential-slips/classes/{$section->id}?locale=ar")
             ->assertOk();
     }
 
@@ -118,7 +118,7 @@ class CredentialSlipTest extends TestCase
         $section = $this->section();
 
         $this->withUser($this->admin)
-            ->get("/api/credential-slips/classes/{$section->id}")
+            ->postJson("/api/credential-slips/classes/{$section->id}")
             ->assertStatus(422);
     }
 
@@ -140,11 +140,55 @@ class CredentialSlipTest extends TestCase
         $before = $teacher->password;
 
         $this->withUser($staff)
-            ->get("/api/credential-slips/teachers/{$teacher->id}")
+            ->postJson("/api/credential-slips/teachers/{$teacher->id}")
             ->assertForbidden();
 
         // Refused before anything was reset.
         $this->assertSame($before, $teacher->fresh()->password);
+    }
+
+    /**
+     * A password the office has just typed is printed as it stands. Issuing a
+     * different one would throw away what they meant to set.
+     */
+    public function test_a_password_already_set_is_printed_rather_than_replaced(): void
+    {
+        $teacher = $this->user('teacher', 'hana@school.test', 'HANA');
+        $before = $teacher->password;
+
+        $slip = app(CredentialSlipService::class)->forTeacher($teacher, 'ChosenByTheOffice1!');
+
+        $this->assertSame('ChosenByTheOffice1!', $slip['password']);
+        // Untouched: the account still holds what it held.
+        $this->assertSame($before, $teacher->fresh()->password);
+    }
+
+    public function test_the_endpoint_prints_a_supplied_password_without_resetting(): void
+    {
+        $teacher = $this->user('teacher', 'hana@school.test', 'HANA');
+        $before = $teacher->password;
+
+        $this->withUser($this->admin)
+            ->postJson("/api/credential-slips/teachers/{$teacher->id}?locale=ar", ['password' => 'TypedJustNow1!'])
+            ->assertOk();
+
+        $this->assertSame($before, $teacher->fresh()->password);
+
+        // And with nothing supplied it does reset, as before.
+        $this->withUser($this->admin)
+            ->postJson("/api/credential-slips/teachers/{$teacher->id}?locale=ar")
+            ->assertOk();
+
+        $this->assertNotSame($before, $teacher->fresh()->password);
+    }
+
+    public function test_a_staff_account_can_be_printed_too(): void
+    {
+        $staff = $this->user('staff', 'clerk@school.test', 'clerk');
+
+        $this->withUser($this->admin)
+            ->postJson("/api/credential-slips/users/{$staff->id}")
+            ->assertOk();
     }
 
     // ---- fixtures -------------------------------------------------------------

@@ -29,9 +29,9 @@ class CredentialSlipService
      *
      * @return array<string, mixed>
      */
-    public function forTeacher(User $teacher): array
+    public function forTeacher(User $teacher, ?string $known = null): array
     {
-        return $this->issue($teacher, $teacher->name, 'teacher');
+        return $this->issue($teacher, $teacher->name, 'teacher', known: $known);
     }
 
     /**
@@ -39,7 +39,7 @@ class CredentialSlipService
      *
      * @return array<string, mixed>
      */
-    public function forStudent(StudentProfile $student): array
+    public function forStudent(StudentProfile $student, ?string $known = null): array
     {
         $user = $student->user;
 
@@ -50,6 +50,7 @@ class CredentialSlipService
             $student->full_name ?: $user->name,
             'student',
             $student->admission_no ?: $student->student_number,
+            $known,
         );
     }
 
@@ -58,13 +59,13 @@ class CredentialSlipService
      *
      * @return array<string, mixed>
      */
-    public function forGuardian(ParentGuardian $guardian): array
+    public function forGuardian(ParentGuardian $guardian, ?string $known = null): array
     {
         $user = $guardian->user;
 
         abort_unless($user, 422, 'ولي الأمر هذا لا يملك حساب دخول.');
 
-        return $this->issue($user, $guardian->name ?: $user->name, 'guardian');
+        return $this->issue($user, $guardian->name ?: $user->name, 'guardian', known: $known);
     }
 
     /**
@@ -88,17 +89,28 @@ class CredentialSlipService
     }
 
     /**
-     * Sets a new password on the account and returns what to print.
+     * Returns what to print, setting a new password unless one is already known.
+     *
+     * A password just typed by the office is printed as it stands — issuing a
+     * different one would throw away what they meant to set. Everywhere else
+     * there is nothing to read back, so a new one is made.
      *
      * @return array<string, mixed>
      */
-    private function issue(User $user, string $displayName, string $role, ?string $reference = null): array
-    {
-        $password = $this->makePassword();
+    private function issue(
+        User $user,
+        string $displayName,
+        string $role,
+        ?string $reference = null,
+        ?string $known = null,
+    ): array {
+        $password = $known ?: $this->makePassword();
 
-        $user->forceFill(['password' => Hash::make($password)])->save();
-        // Anything issued under the old password stops working with it.
-        $user->tokens()->delete();
+        if (! $known) {
+            $user->forceFill(['password' => Hash::make($password)])->save();
+            // Anything issued under the old password stops working with it.
+            $user->tokens()->delete();
+        }
 
         return [
             'name' => $displayName,

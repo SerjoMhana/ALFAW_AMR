@@ -837,6 +837,10 @@ async function submitStudent() {
     resetSiblingAndParentFlow()
     await loadAcademicData()
 
+    // The office has the family in front of them now, which is the moment the
+    // slip is worth printing.
+    await offerNewAccountSlips(created.data)
+
     // Offer to take the enrolment payment straight away; whoever cannot record
     // payments simply lands on the student list as before.
     if (can('finance.payments.record')) {
@@ -1083,27 +1087,111 @@ const passwordMismatch = () => pick(
  */
 const printingSlip = ref('')
 
-async function printCredentials(kind, id, label) {
-  const ok = await confirmAction(
+/**
+ * The slips for a newly enrolled student — theirs, and their guardian's.
+ *
+ * Printing replaces the starting password (the admission number and 123) with
+ * a strong one, so the sheet handed over is both usable and not guessable from
+ * the student's number.
+ */
+async function offerNewAccountSlips(student) {
+  if (!can('students.manage')) return
+
+  const name = student.full_name || student.user?.name || ''
+  const guardian = (student.parents ?? [])[0]
+
+  const wanted = await confirmAction(
     pick(
-      `سيتم إنشاء كلمة مرور جديدة لـ«${label}» وطباعتها.`,
-      `A new password will be generated for "${label}" and printed.`,
+      `تم تسجيل «${name}». هل تريد طباعة بيانات الدخول؟`,
+      `"${name}" has been enrolled. Print the sign-in details?`,
     ),
     {
-      detail: pick(
-        'كلمة المرور الحالية تتوقف عن العمل فوراً، وأي جلسة مفتوحة تُقطع. سلّم الورقة لصاحبها.',
-        'The current password stops working immediately and any open session ends. Hand the slip to its owner.',
-      ),
-      confirmLabel: pick('إنشاء وطباعة', 'Generate and print'),
-      requireAcknowledgement: true,
+      detail: guardian
+        ? pick(
+          'ستُطبع ورقتان: واحدة للطالب وواحدة لولي الأمر، بكلمات مرور جديدة.',
+          'Two slips are printed — one for the student and one for the guardian — with new passwords.',
+        )
+        : pick(
+          'ستُنشأ كلمة مرور جديدة للطالب وتُطبع.',
+          'A new password is generated for the student and printed.',
+        ),
+      confirmLabel: pick('طباعة', 'Print'),
+      cancelLabel: pick('لاحقاً', 'Later'),
     },
   )
-  if (!ok) return
+  if (!wanted) return
+
+  await printCredentials('students', student.id, name, { ask: false })
+
+  if (guardian) {
+    await printCredentials('guardians', guardian.id, guardian.full_name || guardian.name || name, { ask: false })
+  }
+}
+
+/**
+ * Offers the slip right after an account is made or its password set.
+ *
+ * This is the moment the office has the password in hand and the person in
+ * front of them; asking later means generating a new one for no reason.
+ */
+async function offerCredentialSlip(kind, id, label, password = null) {
+  const wanted = await confirmAction(
+    pick(
+      `تم الحفظ. هل تريد طباعة بيانات الدخول لـ«${label}»؟`,
+      `Saved. Print the sign-in slip for "${label}"?`,
+    ),
+    {
+      detail: password
+        ? pick(
+          'ستُطبع كلمة المرور التي أدخلتها الآن كما هي.',
+          'The password you just entered is printed as it stands.',
+        )
+        : pick(
+          'ستُنشأ كلمة مرور جديدة وتُطبع، وكلمة المرور الحالية تتوقف.',
+          'A new password is generated and printed; the current one stops working.',
+        ),
+      confirmLabel: pick('طباعة', 'Print'),
+      cancelLabel: pick('لاحقاً', 'Later'),
+    },
+  )
+  if (!wanted) return
+
+  await printCredentials(kind, id, label, { password, ask: false })
+}
+
+/**
+ * Prints a slip.
+ *
+ * `password` is the one the office has just set, printed as it stands. Without
+ * it the slip carries a newly generated password and the old one stops working,
+ * which is why that case asks first and this one does not need to.
+ */
+async function printCredentials(kind, id, label, { password = null, ask = true } = {}) {
+  if (ask && !password) {
+    const ok = await confirmAction(
+      pick(
+        `سيتم إنشاء كلمة مرور جديدة لـ«${label}» وطباعتها.`,
+        `A new password will be generated for "${label}" and printed.`,
+      ),
+      {
+        detail: pick(
+          'كلمة المرور الحالية تتوقف عن العمل فوراً، وأي جلسة مفتوحة تُقطع. سلّم الورقة لصاحبها.',
+          'The current password stops working immediately and any open session ends. Hand the slip to its owner.',
+        ),
+        confirmLabel: pick('إنشاء وطباعة', 'Generate and print'),
+        requireAcknowledgement: true,
+      },
+    )
+    if (!ok) return
+  }
 
   printingSlip.value = `${kind}-${id}`
 
   try {
-    const blob = await apiBlob(`/credential-slips/${kind}/${id}?locale=${language.value}`)
+    const blob = await apiBlob(`/credential-slips/${kind}/${id}?locale=${language.value}`, {
+      method: 'POST',
+      body: password ? { password } : {},
+    })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -1181,9 +1269,18 @@ async function saveCredentials() {
   if (modal.username) payload.username = modal.username
   if (modal.password) payload.password = modal.password
   const path = modal.kind === 'parent' ? `/parents/${modal.id}/credentials` : `/users/${modal.id}`
+  const changed = modal.password
+  const { kind, id, name } = modal
+
   await submit(path, payload, async () => {
     credentialsModal.value = null
     await loadAcademicData()
+
+    // Only worth offering when a password was actually set; the slip prints
+    // the one just typed, so nothing is reset behind the office's back.
+    if (changed) {
+      await offerCredentialSlip(kind === 'parent' ? 'guardians' : 'users', id, name, changed)
+    }
   }, 'PUT')
 }
 
@@ -1291,6 +1388,9 @@ async function submitTeacher() {
     return
   }
 
+  // Held so the slip can print the password just typed rather than replace it.
+  const justSet = { name: teacherForm.value.name, password: teacherForm.value.password }
+
   await submit('/teachers', {
     name: teacherForm.value.name,
     phone: teacherForm.value.phone,
@@ -1317,6 +1417,12 @@ async function submitTeacher() {
     }
     await loadAcademicData()
     activeTab.value = 'teacher-list'
+
+    const created = teachers.value.find((row) => row.name === justSet.name)
+
+    if (created) {
+      await offerCredentialSlip('teachers', created.id, justSet.name, justSet.password)
+    }
   })
 }
 
@@ -1906,11 +2012,16 @@ async function updateTeacher() {
     return
   }
 
-  const { id, password, password_confirmation: _confirmation, ...fields } = editingTeacher.value
-  const payload = password ? { ...fields, password } : fields
+  const { id, name, password, password_confirmation: _confirmation, ...fields } = editingTeacher.value
+  const payload = password ? { ...fields, name, password } : { ...fields, name }
+
   await submit(`/teachers/${id}`, payload, async () => {
     editingTeacher.value = null
     await loadAcademicData()
+
+    if (password) {
+      await offerCredentialSlip('teachers', id, name, password)
+    }
   }, 'PUT')
 }
 

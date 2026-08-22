@@ -65,13 +65,15 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function (
      * Printable sign-in slips. Issuing one sets a new password, so each route
      * asks for the permission to manage that kind of person, not to view them.
      */
-    Route::get('/credential-slips/teachers/{user}', [CredentialSlipController::class, 'teacher'])
+    Route::post('/credential-slips/teachers/{user}', [CredentialSlipController::class, 'teacher'])
         ->middleware('permission:teachers.manage');
-    Route::get('/credential-slips/students/{studentProfile}', [CredentialSlipController::class, 'student'])
+    Route::post('/credential-slips/users/{user}', [CredentialSlipController::class, 'user'])
+        ->middleware('permission:users.manage');
+    Route::post('/credential-slips/students/{studentProfile}', [CredentialSlipController::class, 'student'])
         ->middleware('permission:students.manage');
-    Route::get('/credential-slips/guardians/{parent}', [CredentialSlipController::class, 'guardian'])
+    Route::post('/credential-slips/guardians/{parent}', [CredentialSlipController::class, 'guardian'])
         ->middleware('permission:students.manage');
-    Route::get('/credential-slips/classes/{courseSection}', [CredentialSlipController::class, 'classSheet'])
+    Route::post('/credential-slips/classes/{courseSection}', [CredentialSlipController::class, 'classSheet'])
         ->middleware('permission:students.manage');
 
     // What deleting a year would take with it, read before the warning is shown.

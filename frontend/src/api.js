@@ -90,13 +90,29 @@ async function apiUpload(path, formData, options = {}) {
 /**
  * For endpoints that answer with a file rather than JSON.
  */
-async function apiBlob(path) {
+async function apiBlob(path, { method = 'GET', body = null } = {}) {
+  if (MUTATING.includes(method.toUpperCase())) {
+    await ensureCsrfCookie()
+  }
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    method,
     credentials: 'include',
-    headers: { Accept: 'application/pdf', 'X-Requested-With': 'XMLHttpRequest' },
+    headers: {
+      Accept: 'application/pdf',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...csrfHeader(),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   })
 
-  if (!response.ok) throw new Error('تعذّر تحميل الملف.')
+  if (!response.ok) {
+    // The server explains a refusal in JSON even when a PDF was asked for.
+    const detail = await response.json().catch(() => null)
+
+    throw new Error(detail?.message ?? 'تعذّر تحميل الملف.')
+  }
 
   return response.blob()
 }
