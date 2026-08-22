@@ -5,7 +5,9 @@
 # Credentials and environment
 .env
 .env.*
+# Templates carry placeholders and the deploy instructions, never a secret.
 !.env.example
+!.env.*.example
 *.pem
 *.key
 *service-account*.json

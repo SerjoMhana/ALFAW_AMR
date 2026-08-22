@@ -170,6 +170,7 @@ const userForm = ref({
   name: '',
   email: '',
   password: '',
+  password_confirmation: '',
   user_type: 'staff',
   is_active: true,
 })
@@ -1063,7 +1064,20 @@ async function previewStudentImport() {
   }
 }
 
+// A password is always typed twice: a typo locks its owner out, and nobody
+// finds out until they try to sign in.
+const passwordMismatch = () => pick(
+  'كلمة المرور وتأكيدها غير متطابقين.',
+  'The password and its confirmation do not match.',
+)
+
 async function submitUser() {
+  if (userForm.value.password !== userForm.value.password_confirmation) {
+    notifyError(passwordMismatch())
+
+    return
+  }
+
   try {
     const created = await api('/users', { method: 'POST', body: JSON.stringify(userForm.value) })
     if (userForm.value.user_type === 'staff' && newUserPermissions.value.length && can('staff.permissions.manage')) {
@@ -1077,6 +1091,7 @@ async function submitUser() {
       name: '',
       email: '',
       password: '',
+      password_confirmation: '',
       user_type: 'staff',
       is_active: true,
     }
@@ -1094,6 +1109,7 @@ function openCredentials(kind, entry) {
     name: entry.name ?? entry.full_name,
     username: entry.username ?? '',
     password: '',
+    password_confirmation: '',
   }
 }
 
@@ -1106,6 +1122,12 @@ async function saveCredentials() {
   }
   if (modal.password && modal.password.length < 8) {
     notifyError(pick('كلمة المرور يجب أن تكون 8 أحرف على الأقل.', 'The password must be at least 8 characters.'))
+    return
+  }
+  // Typed twice, because a typo here locks the account's owner out and nobody
+  // finds out until they try to sign in.
+  if (modal.password && modal.password !== modal.password_confirmation) {
+    notifyError(passwordMismatch())
     return
   }
   const payload = {}
@@ -1823,13 +1845,21 @@ function startEditTeacher(teacher) {
     address: teacher.address ?? '',
     academic_qualification: teacher.academic_qualification ?? '',
     password: '',
+    password_confirmation: '',
     is_active: Boolean(teacher.is_active),
   }
 }
 
 async function updateTeacher() {
   if (!editingTeacher.value) return
-  const { id, password, ...fields } = editingTeacher.value
+
+  if (editingTeacher.value.password !== editingTeacher.value.password_confirmation) {
+    notifyError(passwordMismatch())
+
+    return
+  }
+
+  const { id, password, password_confirmation: _confirmation, ...fields } = editingTeacher.value
   const payload = password ? { ...fields, password } : fields
   await submit(`/teachers/${id}`, payload, async () => {
     editingTeacher.value = null
@@ -2194,6 +2224,9 @@ loadCurrentUser()
               <input v-model="userForm.password" type="password" autocomplete="new-password" required minlength="10" />
               <span class="muted">{{ tr('10 أحرف على الأقل، مع أرقام ورموز.') }}</span>
             </label>
+            <label>{{ tr('تأكيد كلمة المرور') }}
+              <input v-model="userForm.password_confirmation" type="password" autocomplete="new-password" required minlength="10" />
+            </label>
             <label class="checkbox-label"><input v-model="userForm.is_active" type="checkbox" /> {{ tr('نشط') }}</label>
             <button type="submit">{{ tr('إنشاء موظف') }}</button>
           </form>
@@ -2396,6 +2429,7 @@ loadCurrentUser()
               <div class="form-grid">
                 <label>{{ tr('اسم المستخدم') }} <input v-model="credentialsModal.username" /></label>
                 <label>{{ tr('كلمة المرور الجديدة') }} <input v-model="credentialsModal.password" type="password" minlength="8" autocomplete="new-password" :required="credentialsModal.kind === 'parent'" /></label>
+                <label>{{ tr('تأكيد كلمة المرور') }} <input v-model="credentialsModal.password_confirmation" type="password" minlength="8" autocomplete="new-password" :required="Boolean(credentialsModal.password)" /></label>
               </div>
               <p v-if="credentialsModal.kind === 'parent'" class="muted">{{ tr('إذا لم يكن لولي الأمر حساب دخول بعد فسيتم إنشاؤه بهذه البيانات.') }}</p>
               <div class="actions">
@@ -2818,6 +2852,7 @@ loadCurrentUser()
                 <label>{{ tr('مكان السكن') }} <input v-model="editingTeacher.address" /></label>
                 <label>{{ tr('المؤهل الأكاديمي') }} <input v-model="editingTeacher.academic_qualification" /></label>
                 <label>{{ tr('كلمة مرور جديدة (اختياري)') }} <input v-model="editingTeacher.password" type="password" minlength="8" autocomplete="new-password" /></label>
+                <label>{{ tr('تأكيد كلمة المرور') }} <input v-model="editingTeacher.password_confirmation" type="password" minlength="8" autocomplete="new-password" :required="Boolean(editingTeacher.password)" /></label>
                 <label class="checkbox-label"><input v-model="editingTeacher.is_active" type="checkbox" /> {{ tr('نشط') }}</label>
               </div>
               <div class="actions">
