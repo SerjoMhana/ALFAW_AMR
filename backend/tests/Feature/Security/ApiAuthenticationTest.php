@@ -127,37 +127,70 @@ class ApiAuthenticationTest extends TestCase
         $this->assertSame($wrongPassword->json('errors'), $noSuchUser->json('errors'));
     }
 
-    public function test_repeated_failures_lock_the_account_out(): void
+    /**
+     * Nobody is ever locked out.
+     *
+     * A school shares one address and one hurried morning: being told to come
+     * back in fifteen minutes because of two typos is the wrong trade. Guessing
+     * is slowed instead — every attempt is still answered, and the right
+     * password still works however many wrong ones came before it.
+     */
+    public function test_repeated_failures_never_lock_the_account(): void
     {
         $this->admin();
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
-            $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'wrong'])
+        foreach (range(1, 15) as $ignored) {
+            $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'wrong'])
                 ->assertStatus(422);
         }
 
-        // The sixth is refused outright, and the right password no longer helps.
-        $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'wrong'])
-            ->assertStatus(429);
-
-        $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'Str0ng!Passw0rd'])
-            ->assertStatus(429);
+        $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'Str0ng!Passw0rd'])
+            ->assertOk();
     }
 
-    public function test_a_successful_login_clears_the_account_lockout_counter(): void
+    /**
+     * Slowed, though — past the threshold each answer takes measurably longer,
+     * which costs a person nothing and a script everything.
+     */
+    public function test_guessing_gets_slower_the_longer_it_goes_on(): void
+    {
+        $this->admin();
+
+        foreach (range(1, 12) as $ignored) {
+            $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'wrong']);
+        }
+
+        $startedAt = microtime(true);
+        $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'wrong'])
+            ->assertStatus(422);
+        $elapsed = microtime(true) - $startedAt;
+
+        $this->assertGreaterThan(0.3, $elapsed, 'A run of failures should be slowed down.');
+    }
+
+    public function test_a_successful_login_clears_the_failure_count(): void
     {
         $this->admin();
 
         foreach (range(1, 3) as $ignored) {
-            $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'wrong'])->assertStatus(422);
+            $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'wrong'])->assertStatus(422);
         }
 
-        $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'Str0ng!Passw0rd'])->assertOk();
+        $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'Str0ng!Passw0rd'])->assertOk();
 
-        // The counter reset, so a fresh run of failures is needed to lock again.
         foreach (range(1, 4) as $ignored) {
-            $this->postJson('/api/login', ['email' => 'admin@example.com', 'password' => 'wrong'])->assertStatus(422);
+            $this->postJson('/api/login', ['username' => 'admin@example.com', 'password' => 'wrong'])->assertStatus(422);
         }
+    }
+
+    public function test_signing_in_with_a_username_works(): void
+    {
+        $admin = $this->admin();
+        $admin->forceFill(['username' => 'Siraj'])->save();
+
+        $this->postJson('/api/login', ['username' => 'Siraj', 'password' => 'Str0ng!Passw0rd'])
+            ->assertOk()
+            ->assertJsonPath('user.username', 'Siraj');
     }
 
     private function admin(): User

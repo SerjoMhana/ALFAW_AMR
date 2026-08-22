@@ -12,6 +12,7 @@ use App\Http\Controllers\ClassReportCardController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseSectionController;
+use App\Http\Controllers\CredentialSlipController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\Finance\CashAdvanceController;
 use App\Http\Controllers\Finance\DiscountApprovalController;
@@ -59,6 +60,19 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function (
 
     Route::get('/academic/lookups/users', [AcademicLookupController::class, 'users'])
         ->middleware('permission:users.view');
+
+    /*
+     * Printable sign-in slips. Issuing one sets a new password, so each route
+     * asks for the permission to manage that kind of person, not to view them.
+     */
+    Route::get('/credential-slips/teachers/{user}', [CredentialSlipController::class, 'teacher'])
+        ->middleware('permission:teachers.manage');
+    Route::get('/credential-slips/students/{studentProfile}', [CredentialSlipController::class, 'student'])
+        ->middleware('permission:students.manage');
+    Route::get('/credential-slips/guardians/{parent}', [CredentialSlipController::class, 'guardian'])
+        ->middleware('permission:students.manage');
+    Route::get('/credential-slips/classes/{courseSection}', [CredentialSlipController::class, 'classSheet'])
+        ->middleware('permission:students.manage');
 
     // What deleting a year would take with it, read before the warning is shown.
     Route::get('/academic-years/{academicYear}/impact', [AcademicYearController::class, 'impact'])

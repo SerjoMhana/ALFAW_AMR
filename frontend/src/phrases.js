@@ -739,6 +739,9 @@ const en = {
 
   '10 أحرف على الأقل، مع أرقام ورموز.': 'At least 10 characters, with numbers and symbols.',
 
+  'طباعة بيانات الدخول': 'Print sign-in slip',
+  'طباعة بيانات دخول الفصل': 'Print the class sign-in slips',
+
   // ---- cash advances ----
   'العهد': 'Cash advances',
   'صرف مبلغ لموظف لينفقه لصالح المدرسة، ثم إقفاله بما يقابله من فواتير وما تبقّى من نقد.':

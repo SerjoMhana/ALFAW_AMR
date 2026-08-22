@@ -41,6 +41,7 @@ describe('password confirmation', () => {
   it('no longer offers demo accounts or a filled-in password', () => {
     expect(source).not.toContain('demoAccounts')
     expect(source).not.toContain("password: 'password'")
-    expect(source).toContain("const credentials = ref({ email: '', password: '' })")
+    // Signing in is by username now, and nothing is filled in for the visitor.
+    expect(source).toContain("const credentials = ref({ username: '', password: '' })")
   })
 })

@@ -36,7 +36,7 @@ import {
 
 const { apiBaseUrl, api, apiUpload, apiBlob } = useApi()
 
-const credentials = ref({ email: '', password: '' })
+const credentials = ref({ username: '', password: '' })
 const user = ref(null)
 const loading = ref(false)
 const activeTab = ref('home')
@@ -272,7 +272,7 @@ const translations = {
     systemName: 'Student Management System',
     headline: 'Modern academic dashboard',
     summary: 'Manage students, teachers, courses, attendance, grades, GPA, and report cards from one clean workspace.',
-    email: 'Email / Admission Number',
+    username: 'Username',
     password: 'Password',
     signIn: 'Login',
     signingIn: 'Signing in...',
@@ -362,7 +362,7 @@ const translations = {
     systemName: 'نظام إدارة الطلاب',
     headline: 'لوحة أكاديمية حديثة',
     summary: 'إدارة الطلاب، الأساتذة، المواد، الحضور، الدرجات، المعدل، والتقارير من مساحة واحدة واضحة.',
-    email: 'البريد الإلكتروني / رقم القبول',
+    username: 'اسم المستخدم',
     password: 'كلمة المرور',
     signIn: 'تسجيل الدخول',
     signingIn: 'جاري تسجيل الدخول...',
@@ -595,6 +595,9 @@ const groupedStudents = computed(() => {
       groups.set(key, {
         key,
         label: key,
+        // Present only for a real class; a group of students with no class
+        // cannot be printed as one sheet.
+        section_id: student.section?.id ?? null,
         academic_year: student.academic_year || student.section?.academic_year || '',
         students: [],
       })
@@ -1070,6 +1073,50 @@ const passwordMismatch = () => pick(
   'كلمة المرور وتأكيدها غير متطابقين.',
   'The password and its confirmation do not match.',
 )
+
+/*
+ * Printing someone's sign-in slip.
+ *
+ * The stored password cannot be read back, so printing one means setting a new
+ * one — which is said plainly here before anything is issued, not discovered
+ * when the old password stops working.
+ */
+const printingSlip = ref('')
+
+async function printCredentials(kind, id, label) {
+  const ok = await confirmAction(
+    pick(
+      `سيتم إنشاء كلمة مرور جديدة لـ«${label}» وطباعتها.`,
+      `A new password will be generated for "${label}" and printed.`,
+    ),
+    {
+      detail: pick(
+        'كلمة المرور الحالية تتوقف عن العمل فوراً، وأي جلسة مفتوحة تُقطع. سلّم الورقة لصاحبها.',
+        'The current password stops working immediately and any open session ends. Hand the slip to its owner.',
+      ),
+      confirmLabel: pick('إنشاء وطباعة', 'Generate and print'),
+      requireAcknowledgement: true,
+    },
+  )
+  if (!ok) return
+
+  printingSlip.value = `${kind}-${id}`
+
+  try {
+    const blob = await apiBlob(`/credential-slips/${kind}/${id}?locale=${language.value}`)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `credentials-${label}.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
+    notifySuccess(pick('تم إنشاء كشف بيانات الدخول.', 'The sign-in slip was created.'))
+  } catch (err) {
+    notifyError(err.message)
+  } finally {
+    printingSlip.value = ''
+  }
+}
 
 async function submitUser() {
   if (userForm.value.password !== userForm.value.password_confirmation) {
@@ -1897,7 +1944,7 @@ loadCurrentUser()
             ><Sun v-if="isDark" :size="15" /><Moon v-else :size="15" /></button>
           </div>
         </div>
-        <label>{{ ui.email }}<input v-model="credentials.email" type="text" autocomplete="username" required /></label>
+        <label>{{ ui.username }}<input v-model="credentials.username" type="text" autocomplete="username" required /></label>
         <label>{{ ui.password }}<input v-model="credentials.password" type="password" autocomplete="current-password" required /></label>
         <button type="submit" :disabled="loading">{{ loading ? ui.signingIn : ui.signIn }}</button>
         
@@ -2369,6 +2416,12 @@ loadCurrentUser()
                                 <div class="actions">
                                   <button class="secondary compact" @click="showUserParentDetails(parent)">{{ tr('بياناته') }}</button>
                                   <button v-if="can('users.manage')" class="secondary compact" @click="openCredentials('parent', parent)">{{ tr('تغيير كلمة المرور') }}</button>
+                                  <button
+                                    v-if="can('students.manage')"
+                                    class="secondary compact"
+                                    :disabled="printingSlip === `guardians-${parent.id}`"
+                                    @click="printCredentials('guardians', parent.id, parent.full_name)"
+                                  >{{ tr('طباعة بيانات الدخول') }}</button>
                                 </div>
                               </td>
                             </tr>
@@ -2719,9 +2772,18 @@ loadCurrentUser()
                   <td>{{ group.academic_year || '-' }}</td>
                   <td>{{ group.students.length }}</td>
                   <td>
-                    <button type="button" class="secondary compact" @click="toggleStudentGroup(group.key)">
-                      {{ expandedStudentGroups.includes(group.key) ? '−' : '+' }}
-                    </button>
+                    <div class="actions">
+                      <button type="button" class="secondary compact" @click="toggleStudentGroup(group.key)">
+                        {{ expandedStudentGroups.includes(group.key) ? '−' : '+' }}
+                      </button>
+                      <button
+                        v-if="group.section_id && can('students.manage')"
+                        type="button"
+                        class="secondary compact"
+                        :disabled="printingSlip === `classes-${group.section_id}`"
+                        @click="printCredentials('classes', group.section_id, group.label)"
+                      >{{ tr('طباعة بيانات دخول الفصل') }}</button>
+                    </div>
                   </td>
                 </tr>
                 <tr v-if="expandedStudentGroups.includes(group.key)" class="students-row">
@@ -2757,7 +2819,15 @@ loadCurrentUser()
           <article class="student-modal">
             <div class="permission-card-header">
               <h3>{{ tr('بيانات الطالب') }}</h3>
-              <button class="secondary compact" @click="selectedStudent = null">{{ tr('إغلاق') }}</button>
+              <div class="actions">
+                <button
+                  v-if="can('students.manage')"
+                  class="secondary compact"
+                  :disabled="printingSlip === `students-${selectedStudent.id}`"
+                  @click="printCredentials('students', selectedStudent.id, selectedStudent.full_name || selectedStudent.user.name)"
+                >{{ tr('طباعة بيانات الدخول') }}</button>
+                <button class="secondary compact" @click="selectedStudent = null">{{ tr('إغلاق') }}</button>
+              </div>
             </div>
             <div class="details-grid">
               <p><strong>{{ tr('الاسم الكامل:') }}</strong> {{ selectedStudent.full_name || selectedStudent.user.name }}</p>
@@ -2829,6 +2899,12 @@ loadCurrentUser()
                 <td>
                   <div class="actions">
                     <button v-if="can('teachers.manage')" class="secondary compact" @click="startEditTeacher(teacher)">{{ tr('تعديل') }}</button>
+                    <button
+                      v-if="can('teachers.manage')"
+                      class="secondary compact"
+                      :disabled="printingSlip === `teachers-${teacher.id}`"
+                      @click="printCredentials('teachers', teacher.id, teacher.name)"
+                    >{{ tr('طباعة بيانات الدخول') }}</button>
                     <button v-if="can('teachers.manage')" class="danger compact" @click="removeItem(`/teachers/${teacher.id}`, teacher.name)">{{ tr('حذف') }}</button>
                   </div>
                 </td>

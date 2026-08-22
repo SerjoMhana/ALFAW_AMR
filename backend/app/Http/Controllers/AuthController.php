@@ -14,16 +14,23 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    /** Failed attempts allowed against one identifier before it locks. */
-    private const MAX_ATTEMPTS = 5;
-
     /**
-     * A whole school shares one public address, so the per-IP ceiling has to sit
-     * well above the per-account one or a few typos would lock out everybody.
+     * Attempts against one account before each further try is slowed down.
+     *
+     * Nobody is ever locked out. A school shares one address and one hurried
+     * morning, and a teacher who mistypes twice should not be told to come back
+     * in a quarter of an hour. Guessing is made slow instead of impossible:
+     * past this many failures each attempt pauses, which costs a person nothing
+     * and costs a script everything.
      */
-    private const MAX_ATTEMPTS_PER_IP = 30;
+    private const SLOW_AFTER = 10;
 
-    /** How long the lockout lasts, in seconds. */
+    /** The pause added per failure past that, capped by MAX_DELAY_SECONDS. */
+    private const DELAY_STEP_MS = 400;
+
+    private const MAX_DELAY_SECONDS = 3;
+
+    /** How long the failure count is remembered. */
     private const DECAY_SECONDS = 900;
 
     /**
@@ -35,15 +42,22 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
-            'email' => ['required', 'string', 'max:255'],
+            // Named `username` now, with `email` still accepted so an older
+            // client or a saved password manager entry keeps working.
+            'username' => ['required_without:email', 'nullable', 'string', 'max:255'],
+            'email' => ['required_without:username', 'nullable', 'string', 'max:255'],
             'password' => ['required', 'string', 'max:1024'],
         ]);
 
-        $this->ensureNotRateLimited($request, $credentials['email']);
+        $login = (string) ($credentials['username'] ?? $credentials['email']);
 
+        $this->slowDownIfGuessing($request, $login);
+
+        // Username first, since that is what the school hands out; the email is
+        // still accepted for the accounts that sign in with one.
         $user = User::query()
-            ->where('email', $credentials['email'])
-            ->orWhere('username', $credentials['email'])
+            ->where('username', $login)
+            ->orWhere('email', $login)
             ->first();
 
         // Always hash-check something: skipping it for an unknown account leaks
@@ -51,24 +65,24 @@ class AuthController extends Controller
         $passwordMatches = Hash::check($credentials['password'], $user?->password ?? self::DUMMY_HASH);
 
         if (! $user || ! $passwordMatches) {
-            $this->recordFailure($request, $credentials['email']);
+            $this->recordFailure($request, $login);
 
             // One message for both cases, so a failed login says nothing about
             // whether the account is real.
             throw ValidationException::withMessages([
-                'email' => ['Invalid login credentials.'],
+                'username' => ['اسم المستخدم أو كلمة المرور غير صحيحة.'],
             ]);
         }
 
         if (! $user->is_active) {
-            $this->recordFailure($request, $credentials['email']);
+            $this->recordFailure($request, $login);
 
             throw ValidationException::withMessages([
-                'email' => ['This account is inactive.'],
+                'username' => ['هذا الحساب موقوف. راجع إدارة المدرسة.'],
             ]);
         }
 
-        $this->clearAttempts($request, $credentials['email']);
+        $this->clearAttempts($request, $login);
 
         // A browser on the school's own frontend gets an HttpOnly session
         // cookie: no credential is ever exposed to JavaScript, so XSS cannot
@@ -120,48 +134,37 @@ class AuthController extends Controller
     }
 
     /**
-     * Throttled on the identifier and the IP together, so neither guessing many
-     * passwords for one account nor spraying one password across accounts gets
-     * an unlimited number of tries.
+     * Pauses before answering once an account has failed many times running.
+     *
+     * This never refuses and never says "try again later" — it only makes each
+     * further guess slower. Ten wrong tries cost nothing; ten thousand become
+     * hours, which is what stops a script without ever standing in a teacher's
+     * way on a Sunday morning.
      */
-    private function ensureNotRateLimited(Request $request, string $login): void
+    private function slowDownIfGuessing(Request $request, string $login): void
     {
-        foreach ($this->throttleKeys($request, $login) as $key => $max) {
-            if (! RateLimiter::tooManyAttempts($key, $max)) {
-                continue;
-            }
+        $failures = RateLimiter::attempts($this->accountKey($request, $login));
 
-            $seconds = RateLimiter::availableIn($key);
-
-            throw ValidationException::withMessages([
-                'email' => ["Too many login attempts. Try again in {$seconds} seconds."],
-            ])->status(429);
+        if ($failures < self::SLOW_AFTER) {
+            return;
         }
+
+        $delay = min(
+            ($failures - self::SLOW_AFTER + 1) * self::DELAY_STEP_MS * 1000,
+            self::MAX_DELAY_SECONDS * 1_000_000,
+        );
+
+        usleep((int) $delay);
     }
 
     private function recordFailure(Request $request, string $login): void
     {
-        foreach (array_keys($this->throttleKeys($request, $login)) as $key) {
-            RateLimiter::hit($key, self::DECAY_SECONDS);
-        }
+        RateLimiter::hit($this->accountKey($request, $login), self::DECAY_SECONDS);
     }
 
     private function clearAttempts(Request $request, string $login): void
     {
-        // Only the account's own counter is cleared: a successful login must not
-        // wipe the shared IP counter and hand a spraying attacker a fresh budget.
         RateLimiter::clear($this->accountKey($request, $login));
-    }
-
-    /**
-     * @return array<string, int> throttle key => attempts allowed
-     */
-    private function throttleKeys(Request $request, string $login): array
-    {
-        return [
-            $this->accountKey($request, $login) => self::MAX_ATTEMPTS,
-            'login-ip:'.$request->ip() => self::MAX_ATTEMPTS_PER_IP,
-        ];
     }
 
     private function accountKey(Request $request, string $login): string
