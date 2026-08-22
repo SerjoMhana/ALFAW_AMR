@@ -36,7 +36,7 @@ import {
 
 const { apiBaseUrl, api, apiUpload, apiBlob } = useApi()
 
-const credentials = ref({ email: 'admin@school.test', password: 'password' })
+const credentials = ref({ email: '', password: '' })
 const user = ref(null)
 const loading = ref(false)
 const activeTab = ref('home')
@@ -169,7 +169,7 @@ const emptyStudentForm = () => ({
 const userForm = ref({
   name: '',
   email: '',
-  password: 'password',
+  password: '',
   user_type: 'staff',
   is_active: true,
 })
@@ -212,13 +212,6 @@ const reportCardLoading = ref(false)
 const classPublications = ref([])
 const publishingReport = ref(false)
 const pdfType = ref('quarter')
-
-const demoAccounts = [
-  { label: 'Admin', email: 'admin@school.test' },
-  { label: 'Staff', email: 'staff@school.test' },
-  { label: 'Teacher', email: 'teacher@school.test' },
-  { label: 'Student', email: 'student@school.test' },
-]
 
 const tabs = [
   { key: 'home', label: 'Home', view: null },
@@ -285,7 +278,6 @@ const translations = {
     logout: 'Logout',
     currentArea: 'Current Area',
     active: 'Active',
-    demoAccounts: 'Demo accounts',
     language: 'العربية',
     searchPlaceholder: 'Search students, teachers, courses...',
     noPages: 'This account has no administrative pages.',
@@ -376,7 +368,6 @@ const translations = {
     logout: 'تسجيل الخروج',
     currentArea: 'القسم الحالي',
     active: 'نشط',
-    demoAccounts: 'حسابات تجريبية',
     language: 'English',
     searchPlaceholder: 'ابحث عن طالب أو أستاذ أو مادة...',
     noPages: 'هذا الحساب لا يملك صفحات إدارية.',
@@ -1085,7 +1076,7 @@ async function submitUser() {
     userForm.value = {
       name: '',
       email: '',
-      password: 'password',
+      password: '',
       user_type: 'staff',
       is_active: true,
     }
@@ -1632,11 +1623,6 @@ async function removeItem(path, label) {
   }
 }
 
-function useAccount(email) {
-  credentials.value.email = email
-  credentials.value.password = 'password'
-}
-
 function toggleLanguage() {
   setLanguage(language.value === 'ar' ? 'en' : 'ar')
 }
@@ -1881,15 +1867,10 @@ loadCurrentUser()
             ><Sun v-if="isDark" :size="15" /><Moon v-else :size="15" /></button>
           </div>
         </div>
-        <label>{{ ui.email }}<input v-model="credentials.email" type="text" autocomplete="username" /></label>
-        <label>{{ ui.password }}<input v-model="credentials.password" type="password" autocomplete="current-password" /></label>
+        <label>{{ ui.email }}<input v-model="credentials.email" type="text" autocomplete="username" required /></label>
+        <label>{{ ui.password }}<input v-model="credentials.password" type="password" autocomplete="current-password" required /></label>
         <button type="submit" :disabled="loading">{{ loading ? ui.signingIn : ui.signIn }}</button>
-        <div class="demo-buttons">
-          <span>{{ ui.demoAccounts }}</span>
-          <button v-for="account in demoAccounts" :key="account.email" type="button" class="chip" @click="useAccount(account.email)">
-            {{ account.label }}
-          </button>
-        </div>
+        
       </form>
     </section>
 
@@ -2209,7 +2190,10 @@ loadCurrentUser()
           <form class="crud-form" @submit.prevent="submitUser">
             <label>{{ tr('الاسم') }}<input v-model="userForm.name" required /></label>
             <label>{{ tr('البريد الإلكتروني') }}<input v-model="userForm.email" type="email" required /></label>
-            <label>{{ tr('كلمة المرور') }}<input v-model="userForm.password" type="password" /></label>
+            <label>{{ tr('كلمة المرور') }}
+              <input v-model="userForm.password" type="password" autocomplete="new-password" required minlength="10" />
+              <span class="muted">{{ tr('10 أحرف على الأقل، مع أرقام ورموز.') }}</span>
+            </label>
             <label class="checkbox-label"><input v-model="userForm.is_active" type="checkbox" /> {{ tr('نشط') }}</label>
             <button type="submit">{{ tr('إنشاء موظف') }}</button>
           </form>

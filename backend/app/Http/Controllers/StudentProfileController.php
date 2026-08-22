@@ -386,7 +386,6 @@ class StudentProfileController extends Controller
         $updated = 0;
         $skipped = 0;
         $errors = [];
-        $defaultPasswordHash = Hash::make('password');
 
         foreach ($records as $index => $record) {
             if (($record['student_number'] ?? '') === '' || ($record['user_name'] ?? '') === '') {
@@ -422,7 +421,11 @@ class StudentProfileController extends Controller
                     $user = User::create([
                         'name' => $record['user_name'],
                         'email' => $email,
-                        'password' => $defaultPasswordHash,
+                        // The same convention as a student added by hand:
+                        // their own number, not one password for the school.
+                        'password' => Hash::make(
+                            ($record['admission_no'] ?? $record['student_number']).'123',
+                        ),
                         'user_type' => 'student',
                         'is_active' => true,
                     ]);

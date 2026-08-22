@@ -165,7 +165,7 @@ class UserController extends Controller
         unset($validated['course_ids']);
 
         $validated['user_type'] = 'teacher';
-        $validated['password'] = Hash::make($validated['password'] ?? 'password');
+        $validated['password'] = Hash::make($validated['password']);
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $teacher = DB::transaction(function () use ($validated, $courseIds) {
@@ -187,7 +187,7 @@ class UserController extends Controller
     {
         $validated = $request->validated();
         unset($validated['course_ids']);
-        $validated['password'] = Hash::make($validated['password'] ?? 'password');
+        $validated['password'] = Hash::make($validated['password']);
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         return response()->json([

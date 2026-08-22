@@ -33,7 +33,9 @@ class StoreUserRequest extends FormRequest
             'phone_2' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:255'],
             'academic_qualification' => ['nullable', 'string', 'max:255'],
-            'password' => ['nullable', 'string', Password::defaults()],
+            // Required: an account created without one used to fall back to
+            // the literal 'password', which is no password at all.
+            'password' => ['required', 'string', Password::defaults()],
             'user_type' => ['required', Rule::in(['admin', 'staff', 'teacher', 'student'])],
             'is_active' => ['boolean'],
             'course_ids' => ['sometimes', 'array'],

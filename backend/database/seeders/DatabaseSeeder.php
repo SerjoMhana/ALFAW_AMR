@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -70,7 +71,15 @@ class DatabaseSeeder extends Seeder
             ),
         ]);
 
-        $password = Hash::make('password');
+        /*
+         * The administrator's password comes from the environment, and a strong
+         * one is generated and printed when it does not.
+         *
+         * A fixed 'password' seeded into every install is the first thing an
+         * attacker tries, and the school would never know to change it.
+         */
+        $plain = env('SEED_ADMIN_PASSWORD') ?: Str::password(16);
+        $password = Hash::make($plain);
 
         User::updateOrCreate(['email' => 'admin@school.test'], [
             'name' => 'System Admin',
@@ -79,34 +88,34 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        $staff = User::updateOrCreate(['email' => 'staff@school.test'], [
-            'name' => 'Staff User',
-            'password' => $password,
-            'user_type' => 'staff',
-            'is_active' => true,
-        ]);
+        // Sample staff, teacher and student accounts exist for local work only.
+        // They are never created in production, where they would simply be four
+        // more ways in.
+        if (! app()->isProduction() && env('SEED_SAMPLE_USERS', false)) {
+            $staff = User::updateOrCreate(['email' => 'staff@school.test'], [
+                'name' => 'Staff User',
+                'password' => $password,
+                'user_type' => 'staff',
+                'is_active' => true,
+            ]);
 
-        $staff->permissions()->sync([
-            $permissions['users.view']->id,
-            $permissions['students.view']->id,
-            $permissions['view_students']->id,
-            $permissions['courses.view']->id,
-            $permissions['settings.view']->id,
-        ]);
+            $staff->permissions()->sync([
+                $permissions['users.view']->id,
+                $permissions['students.view']->id,
+                $permissions['view_students']->id,
+                $permissions['courses.view']->id,
+                $permissions['settings.view']->id,
+            ]);
 
-        User::updateOrCreate(['email' => 'teacher@school.test'], [
-            'name' => 'Teacher User',
-            'password' => $password,
-            'user_type' => 'teacher',
-            'is_active' => true,
-        ]);
-
-        User::updateOrCreate(['email' => 'student@school.test'], [
-            'name' => 'Student User',
-            'password' => $password,
-            'user_type' => 'student',
-            'is_active' => true,
-        ]);
+            foreach (['teacher', 'student'] as $type) {
+                User::updateOrCreate(['email' => "{$type}@school.test"], [
+                    'name' => ucfirst($type).' User',
+                    'password' => $password,
+                    'user_type' => $type,
+                    'is_active' => true,
+                ]);
+            }
+        }
 
         // Exactly one year is ever active. Seeding them all as active — which
         // this used to do — leaves the settings page showing three current
@@ -120,5 +129,11 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(GradingStructureSeeder::class);
+
+        if (! env('SEED_ADMIN_PASSWORD')) {
+            $this->command?->warn('Administrator: admin@school.test');
+            $this->command?->warn("Password (shown once): {$plain}");
+            $this->command?->warn('Sign in and change it, or set SEED_ADMIN_PASSWORD before seeding.');
+        }
     }
 }
