@@ -19,8 +19,8 @@ function readCookie(name) {
  * in a header. A forged cross-site request can carry the cookie but cannot read
  * it, so it cannot set the header — which is what stops CSRF.
  */
-export async function ensureCsrfCookie() {
-  if (readCookie('XSRF-TOKEN')) return
+export async function ensureCsrfCookie(force = false) {
+  if (!force && readCookie('XSRF-TOKEN')) return
 
   await fetch(`${apiBaseUrl.replace(/\/api$/, '')}/sanctum/csrf-cookie`, {
     credentials: 'include',
@@ -42,7 +42,7 @@ async function request(path, { method = 'GET', headers = {}, ...rest } = {}) {
     await ensureCsrfCookie()
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const send = () => fetch(`${apiBaseUrl}${path}`, {
     method,
     // Sends the session cookie; without it every request is anonymous.
     credentials: 'include',
@@ -54,6 +54,16 @@ async function request(path, { method = 'GET', headers = {}, ...rest } = {}) {
     },
     ...rest,
   })
+
+  let response = await send()
+
+  // A server restart or an invalidated session can leave a readable CSRF
+  // cookie in the browser that no longer belongs to a live session. Refresh
+  // it and retry once so the next login does not get stuck behind a 419.
+  if (response.status === 419 && MUTATING.includes(verb)) {
+    await ensureCsrfCookie(true)
+    response = await send()
+  }
 
   const data = await response.json().catch(() => ({}))
 

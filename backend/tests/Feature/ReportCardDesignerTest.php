@@ -40,13 +40,18 @@ class ReportCardDesignerTest extends TestCase
                 'school_name' => 'مدرسة الرؤية الدولية',
                 'quarter_title' => 'كشف درجات الفصل',
                 'label_grade' => 'الصف:',
+                'label_guardian' => 'ولي الأمر:',
                 'accent_color' => '#aa3311',
                 'show_letter_grade' => false,
+                'show_grading_key' => false,
+                'teacher_remarks_text' => 'Keep improving.',
                 'font_size' => 14,
             ])
             ->assertOk()
             ->assertJsonPath('data.school_name', 'مدرسة الرؤية الدولية')
-            ->assertJsonPath('data.show_letter_grade', false);
+            ->assertJsonPath('data.show_letter_grade', false)
+            ->assertJsonPath('data.label_guardian', 'ولي الأمر:')
+            ->assertJsonPath('data.show_grading_key', false);
 
         // A second reader sees the same sheet.
         $this->assertSame('كشف درجات الفصل', ReportCardTemplate::get()['quarter_title']);
@@ -135,6 +140,46 @@ class ReportCardDesignerTest extends TestCase
         $this->assertNull(ReportCardTemplate::get()['logo_path']);
     }
 
+    public function test_a_secondary_logo_is_uploaded_and_removed(): void
+    {
+        Storage::fake('public');
+        $admin = $this->admin();
+
+        $this->withUser($admin)
+            ->postJson('/api/report-card-template/secondary-logo', [
+                'logo' => UploadedFile::fake()->image('accreditation.png', 180, 180),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.show_secondary_logo', true);
+
+        $path = ReportCardTemplate::get()['secondary_logo_path'];
+        Storage::disk('public')->assertExists($path);
+
+        $this->withUser($admin)->deleteJson('/api/report-card-template/secondary-logo')->assertOk();
+        $this->assertNull(ReportCardTemplate::get()['secondary_logo_path']);
+        Storage::disk('public')->assertMissing($path);
+    }
+
+    public function test_a_third_logo_is_uploaded_and_removed(): void
+    {
+        Storage::fake('public');
+        $admin = $this->admin();
+
+        $this->withUser($admin)
+            ->postJson('/api/report-card-template/third-logo', [
+                'logo' => UploadedFile::fake()->image('ministry.png', 180, 180),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.show_third_logo', true);
+
+        $path = ReportCardTemplate::get()['third_logo_path'];
+        Storage::disk('public')->assertExists($path);
+
+        $this->withUser($admin)->deleteJson('/api/report-card-template/third-logo')->assertOk();
+        $this->assertNull(ReportCardTemplate::get()['third_logo_path']);
+        Storage::disk('public')->assertMissing($path);
+    }
+
     public function test_reset_restores_every_default(): void
     {
         $admin = $this->admin();
@@ -183,9 +228,12 @@ class ReportCardDesignerTest extends TestCase
             'quarter_title' => 'Custom Quarter Heading',
             'label_grade' => 'Year Group:',
             'column_subject' => 'Course Name',
-            'signature_role' => 'Head of School',
+            'signer_two' => 'Head of School',
             'show_letter_grade' => false,
             'footer_note' => 'Issued by the registrar.',
+            'grading_key_title' => 'My Grade Scale',
+            'teacher_remarks_label' => 'Tutor Comment:',
+            'teacher_remarks_text' => 'A custom editable comment.',
         ]);
 
         $html = view('pdf.quarter-report', ['reports' => [$this->sampleReport()]])->render();
@@ -195,6 +243,9 @@ class ReportCardDesignerTest extends TestCase
         $this->assertStringContainsString('Course Name', $html);
         $this->assertStringContainsString('Head of School', $html);
         $this->assertStringContainsString('Issued by the registrar.', $html);
+        $this->assertStringContainsString('My Grade Scale', $html);
+        $this->assertStringContainsString('Tutor Comment:', $html);
+        $this->assertStringContainsString('A custom editable comment.', $html);
 
         // The letter column was switched off, so its default heading is gone.
         $this->assertStringNotContainsString('Letter', $html);
@@ -208,7 +259,7 @@ class ReportCardDesignerTest extends TestCase
             'show_signature' => false,
             'show_report_date' => false,
             'label_date' => 'Report Date',
-            'signature_role' => 'Vice Principal, Vision International School',
+            'signer_two' => 'Vice Principal, Vision International School',
         ]);
 
         $html = view('pdf.quarter-report', ['reports' => [$this->sampleReport()]])->render();

@@ -92,6 +92,31 @@ describe('api client', () => {
     expect(globalThis.fetch.mock.calls[0][1].headers['X-XSRF-TOKEN']).toBe('already-here')
   })
 
+  it('refreshes a stale csrf cookie and retries a write once', async () => {
+    document.cookie = 'XSRF-TOKEN=stale-token; path=/'
+    let writeAttempts = 0
+
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      if (String(url).includes('csrf-cookie')) {
+        document.cookie = 'XSRF-TOKEN=fresh-token; path=/'
+        return Promise.resolve({ ok: true, status: 204, json: () => Promise.resolve({}) })
+      }
+
+      writeAttempts += 1
+      const status = writeAttempts === 1 ? 419 : 200
+      return Promise.resolve({
+        ok: status === 200,
+        status,
+        json: () => Promise.resolve({ user: { id: 1 } }),
+      })
+    })
+
+    await api('/login', { method: 'POST', body: '{}' })
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3)
+    expect(globalThis.fetch.mock.calls[2][1].headers['X-XSRF-TOKEN']).toBe('fresh-token')
+  })
+
   it('marks the session ended when the server rejects it', async () => {
     authenticated.value = true
     globalThis.fetch = respondWith(401, { message: 'Unauthenticated.' })

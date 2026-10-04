@@ -31,21 +31,43 @@ class ReportCardTemplate
             // ---- identity ----
             'school_name' => 'Vision International School',
             'logo_path' => null,          // null falls back to the bundled logo
+            'secondary_logo_path' => null,
+            'third_logo_path' => null,
             'show_logo' => true,
+            'show_secondary_logo' => false,
+            'show_third_logo' => false,
             'logo_width' => 110,
+            'secondary_logo_width' => 90,
+            'third_logo_width' => 90,
+            'logo_label' => 'Alfawz International School',
+            'secondary_logo_label' => '',
+            'third_logo_label' => '',
+            'school_address' => '',
+            'school_phone' => '',
+            'principal_name' => '',
 
             // ---- titles ----
             'quarter_title' => 'Provisionary End of Quarter Progress Report Card',
             'semester_title' => 'Semester {semester} Progress Report Card',
+            'final_title' => 'Final Report Card',
 
             // ---- the details block ----
             'label_student_number' => 'Student Number:',
             'label_student_name' => "Student's Full Name:",
+            'label_roll_number' => 'Roll No:',
+            'label_registration_number' => 'Registration No:',
+            'label_guardian' => 'Parent/Guardian:',
             'label_grade' => 'Grade:',
             'label_date' => 'Report Date',
             'label_school' => 'School:',
             'label_principal' => 'Principal:',
+            'label_teacher' => 'Teacher:',
+            'label_absence_total' => 'Total Days Absent:',
             'show_report_date' => true,
+            'show_absence_total' => true,
+            'show_roll_number' => true,
+            'show_registration_number' => true,
+            'show_guardian' => true,
 
             // ---- the marks table ----
             'column_subject' => 'Subject',
@@ -53,13 +75,39 @@ class ReportCardTemplate
 (out of 100)",
             'column_letter' => "Letter
 Grade",
+            'column_credit' => 'Credit',
             'show_letter_grade' => true,
+
+            // ---- summary, grading key and remarks ----
+            'show_gpa' => true,
+            'label_gpa' => 'GPA',
+            'show_quarter_summary' => true,
+            'label_grand_total' => 'Grand Total',
+            'label_status' => 'Status',
+            'label_pass' => 'PASS',
+            'label_fail' => 'FAIL',
+            'show_grading_key' => true,
+            'grading_key_title' => 'Grading Key',
+            'grading_key_text' => 'A+ = 97-100 | A = 94-96 | A- = 90-93 | B+ = 87-89 | B = 84-86 | B- = 80-83 | C+ = 77-79 | C = 74-76 | C- = 70-73 | D+ = 67-69 | D = 64-66 | D- = 60-63 | F = 0-59',
+            'show_teacher_remarks' => true,
+            'teacher_remarks_label' => 'Class Teacher Remarks:',
+            'teacher_remarks_text' => 'Shows good understanding and steady progress. With a little more effort, can reach higher excellence.',
+            'column_final_grade' => 'Final Grade',
+            'column_quarter_1' => 'Quarter 1',
+            'column_quarter_2' => 'Quarter 2',
+            'column_quarter_3' => 'Quarter 3',
+            'column_quarter_4' => 'Quarter 4',
+            'column_semester_1' => 'Semester 1',
+            'column_semester_2' => 'Semester 2',
 
             // ---- signature ----
             'show_signature' => true,
             'signature_name' => '____________________',
             'signature_role' => 'Vice Principal, Vision International School',
             'signature_label' => "Principal's Signature",
+            'signer_one' => 'Principal',
+            'signer_two' => 'Academic Director',
+            'signer_three' => 'School Director',
 
             // ---- look ----
             'accent_color' => '#1f5eff',
@@ -103,10 +151,12 @@ Grade",
 
     public static function reset(): array
     {
-        $logo = self::get()['logo_path'];
+        $template = self::get();
 
-        if ($logo) {
-            Storage::disk('public')->delete($logo);
+        foreach (['logo_path', 'secondary_logo_path', 'third_logo_path'] as $key) {
+            if ($template[$key]) {
+                Storage::disk('public')->delete($template[$key]);
+            }
         }
 
         SchoolSetting::set(self::KEY, null);
@@ -118,21 +168,28 @@ Grade",
      * The logo as a data URI, which is what dompdf needs — it cannot fetch a URL.
      * Falls back to the bundled logo, then to nothing at all.
      */
-    public static function logoDataUri(): ?string
+    public static function logoDataUri(string $slot = 'primary'): ?string
     {
         $template = self::get();
+        $secondary = $slot === 'secondary';
+        $third = $slot === 'third';
 
-        if (! $template['show_logo']) {
+        if (($secondary && ! $template['show_secondary_logo'])
+            || ($third && ! $template['show_third_logo'])
+            || (! $secondary && ! $third && ! $template['show_logo'])) {
             return null;
         }
 
         $candidates = [];
 
-        if ($template['logo_path']) {
-            $candidates[] = Storage::disk('public')->path($template['logo_path']);
+        $pathKey = $third ? 'third_logo_path' : ($secondary ? 'secondary_logo_path' : 'logo_path');
+        if ($template[$pathKey]) {
+            $candidates[] = Storage::disk('public')->path($template[$pathKey]);
         }
 
-        $candidates[] = public_path('images/school-logo.png');
+        if (! $secondary && ! $third) {
+            $candidates[] = public_path('images/school-logo.png');
+        }
 
         foreach ($candidates as $path) {
             if (is_string($path) && is_file($path)) {
@@ -148,14 +205,17 @@ Grade",
     /**
      * The logo as a browser-reachable URL for the designer's live preview.
      */
-    public static function logoUrl(): ?string
+    public static function logoUrl(string $slot = 'primary'): ?string
     {
         $template = self::get();
+        $secondary = $slot === 'secondary';
+        $third = $slot === 'third';
+        $pathKey = $third ? 'third_logo_path' : ($secondary ? 'secondary_logo_path' : 'logo_path');
 
-        if ($template['logo_path']) {
-            return Storage::disk('public')->url($template['logo_path']);
+        if ($template[$pathKey]) {
+            return Storage::disk('public')->url($template[$pathKey]);
         }
 
-        return is_file(public_path('images/school-logo.png')) ? '/images/school-logo.png' : null;
+        return ! $secondary && ! $third && is_file(public_path('images/school-logo.png')) ? '/images/school-logo.png' : null;
     }
 }

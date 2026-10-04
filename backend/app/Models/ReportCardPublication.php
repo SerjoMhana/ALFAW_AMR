@@ -15,6 +15,8 @@ class ReportCardPublication extends Model
 
     public const TYPE_SEMESTER = 'semester';
 
+    public const TYPE_FINAL = 'final';
+
     protected $fillable = [
         'course_section_id',
         'academic_year',
@@ -36,7 +38,11 @@ class ReportCardPublication extends Model
      */
     public static function periodFor(string $type, ?string $term, ?int $semester): string
     {
-        return $type === self::TYPE_SEMESTER ? 'Semester '.$semester : (string) $term;
+        return match ($type) {
+            self::TYPE_SEMESTER => 'Semester '.$semester,
+            self::TYPE_FINAL => 'Final Report',
+            default => (string) $term,
+        };
     }
 
     public function courseSection(): BelongsTo

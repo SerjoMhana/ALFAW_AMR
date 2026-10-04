@@ -12,13 +12,13 @@ import GradingSettings from './components/grading/GradingSettings.vue'
 import TeacherSubjectPicker from './components/teachers/TeacherSubjectPicker.vue'
 import ReportCardDesigner from './components/grading/ReportCardDesigner.vue'
 import GoogleClassroom from './components/grading/GoogleClassroom.vue'
-import Classroom from './components/classroom/Classroom.vue'
 import SchoolCalendar from './components/calendar/SchoolCalendar.vue'
 import AttendanceRegister from './components/attendance/AttendanceRegister.vue'
 import GradeSubmissionReport from './components/grading/GradeSubmissionReport.vue'
 import TermWindows from './components/grading/TermWindows.vue'
 import ParentDashboard from './components/parent/ParentDashboard.vue'
-import StudentGradeCards from './components/shared/StudentGradeCards.vue'
+import PublishedReportCards from './components/shared/PublishedReportCards.vue'
+import GradeEntryTable from './components/grading/GradeEntryTable.vue'
 import StudentPromotion from './components/students/StudentPromotion.vue'
 import StudentAccounts from './components/finance/StudentAccounts.vue'
 import DiscountApprovals from './components/finance/DiscountApprovals.vue'
@@ -31,7 +31,7 @@ import { tr } from './phrases.js'
 import {
   LayoutDashboard, GraduationCap, Users, School, BookOpen,
   ClipboardList, Wallet, Settings, UserCog, FileBarChart,
-  LogOut, Moon, Sun, Languages, ChevronDown, MessagesSquare, CalendarDays,
+  LogOut, Moon, Sun, Languages, ChevronDown, CalendarDays,
 } from 'lucide-vue-next'
 
 const { apiBaseUrl, api, apiUpload, apiBlob } = useApi()
@@ -52,15 +52,10 @@ const courses = ref([])
 const sections = ref([])
 const academicYears = ref([])
 const teacherClasses = ref([])
-const teacherCourses = ref([])
 const studentCourses = ref([])
 const studentOpenTerms = ref([])
 const studentPublications = ref([])
 const gradeReport = ref(null)
-const teacherSummary = ref([])
-const gpaReport = ref(null)
-const studentDashboard = ref(null)
-const reportCard = ref(null)
 const studentAttendance = ref([])
 const lookups = ref({ teachers: [], students: [] })
 const archivedFilter = ref('active')
@@ -212,13 +207,29 @@ const reportCardMissing = ref([])
 const reportCardLoading = ref(false)
 const classPublications = ref([])
 const publishingReport = ref(false)
-const pdfType = ref('quarter')
+
+const selectedStudentCourse = computed(() => studentCourses.value.find(
+  (course) => String(course.id) === String(reportSectionId.value),
+) ?? null)
+const selectedStudentGradeCard = computed(() => {
+  if (!selectedStudentCourse.value || !gradeReport.value) return null
+  return {
+    course: selectedStudentCourse.value,
+    section: selectedStudentCourse.value.class_section,
+    teacher: selectedStudentCourse.value.teacher,
+    report: gradeReport.value,
+  }
+})
+
+const studentTermLabels = {
+  'Quarter 1': 'الكورتر الأول',
+  'Quarter 2': 'الكورتر الثاني',
+  'Quarter 3': 'الكورتر الثالث',
+  'Quarter 4': 'الكورتر الرابع',
+}
 
 const tabs = [
   { key: 'home', label: 'Home', view: null },
-  // Everyone gets the classroom: which subjects appear inside it is decided by
-  // the server from what each person teaches or is enrolled in.
-  { key: 'classroom', label: 'Classroom', everyone: true },
   // The calendar is published to the whole school, so everyone sees the tab;
   // only the office gets the buttons inside it.
   { key: 'calendar', label: 'School Calendar', everyone: true },
@@ -245,16 +256,16 @@ const tabs = [
   { key: 'grade-submission-report', label: 'Grade Submission Report', view: 'admin_manage_grades' },
   { key: 'term-windows', label: 'Open / Close Terms', view: 'admin_manage_grades' },
   { key: 'parent-dashboard', label: 'My Children', role: 'parent' },
+  { key: 'parent-grade-report', label: 'Grade Report', role: 'parent' },
+  { key: 'parent-reports', label: 'Grade Reports', role: 'parent' },
   { key: 'grading-settings', label: 'Grading Settings', view: 'manage_grading_structure' },
   { key: 'report-card-designer', label: 'Report Card Designer', view: 'settings.view' },
   // The register is the office's, not the classroom's: it shows for whoever
   // holds the permission rather than for every teacher.
   { key: 'attendance', label: 'Attendance', views: ['attendance.view', 'attendance.manage'] },
-  { key: 'student-report', label: 'Student Report', role: 'student' },
+  { key: 'student-report', label: 'Grade Report', role: 'student' },
   { key: 'student-attendance', label: 'My Attendance', role: 'student' },
-  { key: 'student-dashboard', label: 'Student Dashboard', role: 'student' },
-  { key: 'report-card', label: 'Report Card', role: 'student' },
-  { key: 'teacher-summary', label: 'Grade Summary', role: 'teacher' },
+  { key: 'report-card', label: 'Grade Reports', role: 'student' },
   { key: 'admin-grade-report', label: 'Admin Grade Report', view: 'students.view' },
 ]
 
@@ -338,14 +349,15 @@ const translations = {
       'grade-submission-report': 'Grade Submission Report',
       'term-windows': 'Open / Close Terms',
       'parent-dashboard': 'My Children',
+      'parent-grade-report': 'Grade Report',
+      'parent-reports': 'Grade Reports',
       'grading-settings': 'Grading Settings',
       'report-card-designer': 'Report Card Designer',
       'google-classroom': 'Google Classroom',
       attendance: 'Attendance Register',
-      'student-report': 'Student Report',
+      'student-report': 'Grade Report',
       'student-attendance': 'My Attendance',
-      'student-dashboard': 'Student Dashboard',
-      'report-card': 'Report Card',
+      'report-card': 'Grade Reports',
       'teacher-summary': 'Grade Summary',
       'admin-grade-report': 'Admin Grade Report',
     },
@@ -428,14 +440,15 @@ const translations = {
       'grade-submission-report': 'تقرير إدخال الدرجات',
       'term-windows': 'فتح وإغلاق الفصول',
       'parent-dashboard': 'أبنائي',
+      'parent-grade-report': 'تقرير الدرجات',
+      'parent-reports': 'تقارير الدرجات',
       'grading-settings': 'إعدادات نظام الدرجات',
       'report-card-designer': 'تصميم كشف الدرجات',
       'google-classroom': 'Google Classroom',
       attendance: 'الحضور والغياب',
-      'student-report': 'تقرير الطالب',
+      'student-report': 'تقرير الدرجات',
       'student-attendance': 'حضوري',
-      'student-dashboard': 'لوحة الطالب',
-      'report-card': 'كشف الدرجات',
+      'report-card': 'تقارير الدرجات',
       'teacher-summary': 'ملخص الدرجات',
       'admin-grade-report': 'تقرير درجات الأدمن',
     },
@@ -465,9 +478,7 @@ const settingsTabs = computed(() => visibleTabs.value.filter((tab) => settingsTa
 const financeTabs = computed(() => visibleTabs.value.filter((tab) => financeTabKeys.includes(tab.key)))
 const sidebarTabs = computed(() => visibleTabs.value.filter((tab) =>
   tab.key !== 'home'
-  // Rendered beside Home rather than in the leftovers: these are where teachers
-  // and students spend their day.
-  && tab.key !== 'classroom'
+  // Rendered beside Home rather than in the leftovers.
   && tab.key !== 'calendar'
   && !studentTabKeys.includes(tab.key)
   && !teacherTabKeys.includes(tab.key)
@@ -494,6 +505,9 @@ const studentClassOptions = computed(() => {
     .filter((section) => (seen.has(section.class_name) ? false : (seen.add(section.class_name), true)))
     .map((section) => ({ value: section.class_name, label: section.class_name }))
 })
+const editingStudentSectionOptions = computed(() => sections.value.filter(
+  (section) => !editingStudent.value?.academic_year || section.academic_year === editingStudent.value.academic_year,
+))
 
 watch(() => studentForm.value.academic_year, () => {
   if (studentForm.value.course && !studentClassOptions.value.some((option) => option.value === studentForm.value.course)) {
@@ -711,10 +725,10 @@ async function loadAcademicData() {
     loadIfAllowed('sections.view', '/course-sections', sections),
     loadIfAllowed('settings.view', '/academic-years', academicYears),
     loadTeacherClasses(),
-    loadTeacherCourses(),
     loadStudentCourses(),
     loadStudentTerms(),
     loadStudentPublications(),
+    loadStudentAttendance(),
     loadReportSettings(),
     loadPermissions(),
     loadLookups(),
@@ -768,12 +782,6 @@ async function loadTeacherClasses() {
   teacherClasses.value = data.data
 }
 
-async function loadTeacherCourses() {
-  if (user.value?.user_type !== 'teacher') return
-  const data = await api('/teacher/courses')
-  teacherCourses.value = data.data
-}
-
 async function loadStudentCourses() {
   if (user.value?.user_type !== 'student') return
   const data = await api('/student/courses')
@@ -797,13 +805,23 @@ async function loadStudentPublications() {
 }
 
 async function downloadPublishedReportCard(publication) {
-
   try {
     const blob = await apiBlob(`/student/report-cards/${publication.id}/pdf`)
-    window.open(URL.createObjectURL(blob), '_blank')
+    downloadBlob(blob, `report-${user.value?.name || 'student'}-${publication.period}.pdf`)
   } catch (err) {
     notifyError(err.message)
   }
+}
+
+function downloadBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename.replace(/\s+/g, '-')
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 async function logout() {
@@ -999,20 +1017,67 @@ function startEditStudent(student) {
     user_email: student.user?.email ?? '',
     admission_date: student.admission_date ?? '',
     date_of_birth: student.date_of_birth ?? '',
+    section_id: student.section_id ?? student.section?.id ?? '',
+    course: student.course || student.section?.class_name || student.grade_level || '',
   }
   activeTab.value = 'student-list'
 }
 
+function updateEditingStudentSection() {
+  const section = sections.value.find((item) => Number(item.id) === Number(editingStudent.value?.section_id))
+  if (!section || !editingStudent.value) return
+
+  editingStudent.value.course = section.class_name || section.section_code
+  editingStudent.value.grade_level = section.section_code || section.class_name
+  const numericGrade = Number(String(section.section_code || section.class_name).match(/\d+/)?.[0])
+  if (numericGrade) editingStudent.value.current_grade_level = numericGrade
+}
+
 async function updateStudent() {
   if (!editingStudent.value) return
-  await submit(`/students/${editingStudent.value.id}`, studentPayload(editingStudent.value), async () => {
+  const payload = {
+    ...editingStudent.value,
+    user_name: editingStudent.value.user_name || editingStudent.value.full_name,
+    student_number: editingStudent.value.admission_no || editingStudent.value.student_number,
+    student_code: editingStudent.value.student_code || editingStudent.value.admission_no,
+    grade_level: editingStudent.value.grade_level || editingStudent.value.course,
+  }
+  await submit(`/students/${editingStudent.value.id}`, payload, async () => {
     editingStudent.value = null
     await loadStudents()
   }, 'PUT')
 }
 
 async function archiveStudent(student) {
-  await submit(`/students/${student.id}/archive`, { archive_reason: 'Archived from dashboard' }, loadStudents)
+  const name = student.full_name || student.user?.name || student.student_number
+  const confirmed = await confirmAction(
+    pick(
+      `سيتم حذف «${name}» من قائمة الطلبة النشطين ونقله إلى الأرشيف.`,
+      `"${name}" will be removed from active students and moved to the archive.`,
+    ),
+    {
+      detail: pick(
+        'يمكن استرجاع الطالب لاحقاً من صفحة أرشيف الطلبة، ولن تُحذف درجاته أو بياناته نهائياً.',
+        'The student can be restored later from Student Archive. Their grades and records will not be permanently deleted.',
+      ),
+      confirmLabel: pick('حذف ونقل إلى الأرشيف', 'Move to archive'),
+      cancelLabel: pick('إلغاء', 'Cancel'),
+    },
+  )
+
+  if (!confirmed) return
+
+  try {
+    await api(`/students/${student.id}/archive`, {
+      method: 'POST',
+      body: JSON.stringify({ archive_reason: 'حذف من قائمة الطلبة ونقل إلى الأرشيف' }),
+    })
+    selectedStudent.value = null
+    notifySuccess(pick('تم نقل الطالب إلى الأرشيف.', 'Student moved to the archive.'))
+    await loadStudents()
+  } catch (err) {
+    notifyError(err.message)
+  }
 }
 
 async function restoreStudent(student) {
@@ -1246,6 +1311,14 @@ function openCredentials(kind, entry) {
     password: '',
     password_confirmation: '',
   }
+}
+
+function openStudentCredentials(student) {
+  openCredentials('user', {
+    id: student.user_id ?? student.user?.id,
+    name: student.full_name || student.user?.name || student.student_number,
+    username: student.user?.username ?? student.student_number ?? '',
+  })
 }
 
 async function saveCredentials() {
@@ -1636,38 +1709,37 @@ async function submitSection() {
 }
 
 async function loadStudentReport() {
-  if (!reportSectionId.value) return
-  gradeReport.value = (await api(`/student/courses/${reportSectionId.value}/grade-report?term=${encodeURIComponent(reportTerm.value)}`)).data
-  gpaReport.value = (await api(`/student/gpa?term=${encodeURIComponent(reportTerm.value)}`))
-}
+  gradeReport.value = null
+  if (!reportSectionId.value || !reportTerm.value) return
 
-async function loadStudentDashboard() {
-  studentDashboard.value = (await api(`/student/dashboard?term=${encodeURIComponent(reportTerm.value)}`))
-}
-
-async function loadReportCard() {
-  reportCard.value = (await api('/student/report-card'))
-}
-
-async function downloadStudentReportPdf() {
-  let blob
   try {
-    blob = await apiBlob(`/student/report-card/pdf?type=${pdfType.value}&term=${encodeURIComponent(reportTerm.value)}`)
-  } catch {
-    notifyError(pick('تعذّر تحميل كشف الدرجات PDF.', 'Could not download the PDF report card.'))
-    return
+    gradeReport.value = (await api(`/student/courses/${reportSectionId.value}/grade-report?term=${encodeURIComponent(reportTerm.value)}`)).data
+  } catch (err) {
+    notifyError(err.message)
   }
-  const objectUrl = URL.createObjectURL(blob)
-  window.open(objectUrl, '_blank')
+}
+
+function onStudentReportTermChange() {
+  reportSectionId.value = ''
+  gradeReport.value = null
 }
 
 async function loadStudentAttendance() {
+  if (user.value?.user_type !== 'student') return
   studentAttendance.value = (await api('/student/attendance')).data
 }
 
-async function loadTeacherSummary() {
-  if (!reportSectionId.value) return
-  teacherSummary.value = (await api(`/teacher/courses/${reportSectionId.value}/grade-summary?term=${encodeURIComponent(reportTerm.value)}`)).data
+function attendanceStatusLabel(status) {
+  return ({
+    present: tr('حاضر'),
+    absent: tr('غائب'),
+    late: tr('متأخر'),
+    excused: tr('غياب بعذر'),
+  })[status] || status
+}
+
+function dateOnly(value) {
+  return value ? String(value).split('T')[0] : '—'
 }
 
 async function onReportClassChange() {
@@ -1690,7 +1762,7 @@ async function onReportClassChange() {
 
 const currentPublishPeriod = computed(() => (reportCardForm.value.type === 'semester'
   ? `Semester ${reportCardForm.value.semester}`
-  : reportCardForm.value.term))
+  : reportCardForm.value.type === 'final' ? 'Final Report' : reportCardForm.value.term))
 const isCurrentPeriodPublished = computed(() => classPublications.value
   .some((publication) => publication.period === currentPublishPeriod.value))
 
@@ -1706,7 +1778,9 @@ async function publishReportCard(publish) {
 
   const payload = reportCardForm.value.type === 'semester'
     ? { type: 'semester', semester: Number(reportCardForm.value.semester) }
-    : { type: 'quarter', term: reportCardForm.value.term }
+    : reportCardForm.value.type === 'final'
+      ? { type: 'final' }
+      : { type: 'quarter', term: reportCardForm.value.term }
 
   try {
     await api(`/classes/${reportCardForm.value.course_section_id}/report-card-publications`, {
@@ -1735,9 +1809,11 @@ async function downloadClassReportCard() {
   if (form.type === 'quarter') {
     params.set('term', form.term)
     path = `/admin/classes/${form.course_section_id}/report-cards/quarter/pdf`
-  } else {
+  } else if (form.type === 'semester') {
     params.set('semester', String(form.semester))
     path = `/admin/classes/${form.course_section_id}/report-cards/semester/pdf`
+  } else {
+    path = `/admin/classes/${form.course_section_id}/report-cards/final/pdf`
   }
 
   try {
@@ -2079,15 +2155,6 @@ loadCurrentUser()
           >
             <LayoutDashboard class="tab-icon" :size="18" />
             {{ ui.tabs.home }}
-          </button>
-
-          <button
-            type="button"
-            :class="{ active: activeTab === 'classroom' }"
-            @click="activeTab = 'classroom'"
-          >
-            <MessagesSquare class="tab-icon" :size="18" />
-            {{ ui.tabs.classroom }}
           </button>
 
           <button
@@ -2843,9 +2910,43 @@ loadCurrentUser()
 
         <form v-if="editingStudent && can('edit_students')" class="student-form edit-panel" @submit.prevent="updateStudent">
           <div class="permission-card-header">
-            <h3>Edit Student</h3>
-            <button type="button" class="secondary compact" @click="editingStudent = null">Cancel</button>
+            <h3>{{ tr('تعديل بيانات الطالب') }}</h3>
+            <button type="button" class="secondary compact" @click="editingStudent = null">{{ tr('إلغاء') }}</button>
           </div>
+          <article class="form-card required-card">
+            <h3>{{ tr('المعلومات الأساسية والدراسة') }}</h3>
+            <div class="form-grid">
+              <label>{{ tr('رقم الطالب') }} <input v-model="editingStudent.admission_no" required /></label>
+              <label>{{ tr('الاسم الكامل') }} <input v-model="editingStudent.full_name" required /></label>
+              <label>{{ tr('الاسم الأول') }} <input v-model="editingStudent.first_name" /></label>
+              <label>{{ tr('اسم الأب') }} <input v-model="editingStudent.middle_name" /></label>
+              <label>{{ tr('اسم العائلة') }} <input v-model="editingStudent.last_name" /></label>
+              <label>{{ tr('الاسم العربي') }} <input v-model="editingStudent.arabic_name" /></label>
+              <label>{{ tr('تاريخ القبول') }} <input v-model="editingStudent.admission_date" type="date" /></label>
+              <label>{{ tr('تاريخ الميلاد') }} <input v-model="editingStudent.date_of_birth" type="date" /></label>
+              <label>{{ tr('الجنس') }}
+                <select v-model="editingStudent.gender">
+                  <option value="">{{ tr('اختر الجنس') }}</option>
+                  <option value="male">{{ tr('ذكر') }}</option>
+                  <option value="female">{{ tr('أنثى') }}</option>
+                </select>
+              </label>
+              <label>{{ tr('السنة الدراسية') }}
+                <select v-model="editingStudent.academic_year">
+                  <option value="">{{ tr('اختر السنة الدراسية') }}</option>
+                  <option v-for="year in academicYearOptions" :key="`edit-year-${year}`" :value="year">{{ year }}</option>
+                </select>
+              </label>
+              <label>{{ tr('الفصل / الشعبة') }}
+                <select v-model="editingStudent.section_id" @change="updateEditingStudentSection">
+                  <option value="">{{ tr('بدون فصل') }}</option>
+                  <option v-for="section in editingStudentSectionOptions" :key="`edit-section-${section.id}`" :value="section.id">
+                    {{ section.class_name || section.section_code }} · {{ section.section_code }}
+                  </option>
+                </select>
+              </label>
+            </div>
+          </article>
           <article v-for="group in studentFieldGroups" :key="`edit-${group.title}`" class="form-card">
             <h3>{{ group.title }}</h3>
             <div class="form-grid">
@@ -2955,10 +3056,31 @@ loadCurrentUser()
               <p><strong>{{ tr('الحالة:') }}</strong> {{ selectedStudent.archived_at ? tr('مؤرشف') : tr('نشط') }}</p>
             </div>
             <div class="actions">
-              <button v-if="can('edit_students')" class="secondary compact" @click="startEditStudent(selectedStudent); selectedStudent = null">{{ tr('تعديل') }}</button>
-              <button v-if="can('archive_students') && !selectedStudent.archived_at" class="danger compact" @click="archiveStudent(selectedStudent); selectedStudent = null">{{ tr('أرشفة') }}</button>
+              <button v-if="can('edit_students')" class="secondary compact" @click="startEditStudent(selectedStudent); selectedStudent = null">{{ tr('تعديل البيانات') }}</button>
+              <button v-if="can('users.manage') && !selectedStudent.archived_at" class="secondary compact" @click="openStudentCredentials(selectedStudent); selectedStudent = null">{{ tr('تغيير كلمة المرور') }}</button>
+              <button v-if="can('archive_students') && !selectedStudent.archived_at" class="danger compact" @click="archiveStudent(selectedStudent)">{{ tr('حذف ونقل إلى الأرشيف') }}</button>
               <button v-if="can('restore_students') && selectedStudent.archived_at" class="secondary compact" @click="restoreStudent(selectedStudent); selectedStudent = null">{{ tr('استرجاع') }}</button>
             </div>
+          </article>
+        </div>
+
+        <div v-if="credentialsModal" class="modal-backdrop" @click.self="credentialsModal = null">
+          <article class="student-modal">
+            <form @submit.prevent="saveCredentials">
+              <div class="permission-card-header">
+                <h3>{{ tr('تغيير كلمة مرور الطالب —') }} {{ credentialsModal.name }}</h3>
+                <button type="button" class="secondary compact" @click="credentialsModal = null">{{ tr('إغلاق') }}</button>
+              </div>
+              <div class="form-grid">
+                <label>{{ tr('اسم المستخدم') }} <input v-model="credentialsModal.username" /></label>
+                <label>{{ tr('كلمة المرور الجديدة') }} <input v-model="credentialsModal.password" type="password" minlength="8" autocomplete="new-password" required /></label>
+                <label>{{ tr('تأكيد كلمة المرور') }} <input v-model="credentialsModal.password_confirmation" type="password" minlength="8" autocomplete="new-password" required /></label>
+              </div>
+              <p class="muted">{{ tr('بعد الحفظ ستتوقف كلمة المرور القديمة، ويمكن طباعة بيانات الدخول الجديدة.') }}</p>
+              <div class="actions">
+                <button type="submit">{{ tr('حفظ كلمة المرور') }}</button>
+              </div>
+            </form>
           </article>
         </div>
       </section>
@@ -3456,7 +3578,15 @@ loadCurrentUser()
       </section>
 
       <section v-if="activeTab === 'parent-dashboard' && user?.user_type === 'parent'">
-        <ParentDashboard />
+        <ParentDashboard view="overview" />
+      </section>
+
+      <section v-if="activeTab === 'parent-grade-report' && user?.user_type === 'parent'">
+        <ParentDashboard view="grades" />
+      </section>
+
+      <section v-if="activeTab === 'parent-reports' && user?.user_type === 'parent'">
+        <ParentDashboard view="reports" />
       </section>
 
       <section v-if="activeTab === 'report-card-designer' && can('settings.view')">
@@ -3465,10 +3595,6 @@ loadCurrentUser()
 
       <section v-if="activeTab === 'google-classroom' && can('settings.manage')">
         <GoogleClassroom />
-      </section>
-
-      <section v-if="activeTab === 'classroom'">
-        <Classroom />
       </section>
 
       <section v-if="activeTab === 'grading-settings' && can('manage_grading_structure')">
@@ -3488,160 +3614,73 @@ loadCurrentUser()
           {{ tr('لم تفتح إدارة المدرسة أي فصل دراسي بعد. ستظهر درجاتك هنا فور فتحه.') }}
         </p>
         <div v-else class="crud-form">
-          <label>Course
-            <select v-model="reportSectionId" required>
-              <option value="">Select course</option>
-              <option v-for="course in studentCourses" :key="course.id" :value="course.id">
-                {{ course.name }} - {{ course.class_section?.class_name || tr('بدون اسم') }}
+          <label>{{ tr('الكورتر') }}
+            <select v-model="reportTerm" @change="onStudentReportTermChange">
+              <option value="">{{ tr('اختر الكورتر') }}</option>
+              <option v-for="term in studentOpenTerms" :key="term" :value="term">
+                {{ tr(studentTermLabels[term] || term) }}
               </option>
             </select>
           </label>
-          <label>Term
-            <select v-model="reportTerm">
-              <option v-for="term in studentOpenTerms" :key="term" :value="term">{{ term }}</option>
+          <label>{{ tr('المادة') }}
+            <select v-model="reportSectionId" :disabled="!reportTerm" @change="loadStudentReport">
+              <option value="">{{ tr('اختر المادة') }}</option>
+              <option v-for="course in studentCourses" :key="course.id" :value="course.id">
+                {{ course.name }}
+              </option>
             </select>
           </label>
-          <button type="button" @click="loadStudentReport">Load Read-Only Report</button>
         </div>
+
+        <article v-if="selectedStudentGradeCard" class="form-card">
+          <h3>{{ user.name }} — {{ selectedStudentCourse.name }} — {{ tr(studentTermLabels[reportTerm] || reportTerm) }}</h3>
+          <p class="muted">{{ tr('هذا السجل للعرض فقط ولا يمكن تعديل أي درجة.') }}</p>
+          <GradeEntryTable
+            :categories="gradeReport.entry_table.categories"
+            :students="gradeReport.entry_table.students"
+            :submission="gradeReport.entry_table.submission"
+          />
+        </article>
+
+        <p v-else-if="studentOpenTerms.length && reportTerm" class="muted">
+          {{ tr('اختر المادة لعرض درجاتك.') }}
+        </p>
       </section>
 
       <section v-if="activeTab === 'student-attendance' && user?.user_type === 'student'" class="workspace">
-        <button type="button" @click="loadStudentAttendance">Load Attendance</button>
         <div v-if="studentAttendance.length" class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{{ tr('اسم الطالب') }}</th>
+                <th>{{ tr('التاريخ') }}</th>
+                <th>{{ tr('الفصل') }}</th>
+                <th>{{ tr('الحالة') }}</th>
+              </tr>
+            </thead>
             <tbody>
               <tr v-for="record in studentAttendance" :key="record.id">
-                <td>{{ record.attendance_date }}</td>
+                <td>{{ user.name }}</td>
+                <td>{{ dateOnly(record.attendance_date) }}</td>
                 <td>{{ record.course_section.section_code }} - {{ record.course_section.class_name || tr('بدون اسم') }}</td>
-                <td>{{ record.status }}</td>
-                <td>{{ record.notes }}</td>
+                <td>
+                  <span class="status" :class="record.status === 'present' ? 'status-good' : 'status-warn'">
+                    {{ attendanceStatusLabel(record.status) }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-      </section>
-
-      <section v-if="activeTab === 'student-dashboard' && user?.user_type === 'student'" class="workspace">
-        <p v-if="!studentOpenTerms.length" class="notice warn">
-          {{ tr('لم تفتح إدارة المدرسة أي فصل دراسي بعد. ستظهر درجاتك هنا فور فتحه.') }}
-        </p>
-        <template v-else>
-          <div class="crud-form">
-            <label>{{ tr('الفصل الدراسي') }}
-              <select v-model="reportTerm">
-                <option v-for="term in studentOpenTerms" :key="term" :value="term">{{ term }}</option>
-              </select>
-            </label>
-            <button type="button" @click="loadStudentDashboard">{{ tr('عرض الدرجات') }}</button>
-          </div>
-
-          <article v-if="studentDashboard" class="form-card">
-            <h3>{{ tr('درجاتي —') }} {{ studentDashboard.term }}</h3>
-            <StudentGradeCards :courses="studentDashboard.courses" />
-          </article>
-        </template>
-
-        <article v-if="studentPublications.length" class="form-card">
-          <h3>{{ tr('كشوف الدرجات المتاحة') }}</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>{{ tr('الفترة') }}</th><th>{{ tr('تاريخ النشر') }}</th><th></th></tr></thead>
-              <tbody>
-                <tr v-for="publication in studentPublications" :key="publication.id">
-                  <td>{{ publication.period }}</td>
-                  <td>{{ publication.published_at }}</td>
-                  <td>
-                    <button type="button" class="secondary compact" @click="downloadPublishedReportCard(publication)">
-                      {{ tr('تحميل PDF') }}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <p v-else class="muted">{{ tr('لا توجد سجلات حضور أو غياب مسجلة حتى الآن.') }}</p>
       </section>
 
       <section v-if="activeTab === 'report-card' && user?.user_type === 'student'" class="workspace">
-        <div class="crud-form">
-          <button type="button" @click="loadReportCard">Load Report Card</button>
-          <label>PDF Type
-            <select v-model="pdfType">
-              <option value="quarter">Quarter</option>
-              <option value="semester">Semester</option>
-              <option value="final">Final</option>
-            </select>
-          </label>
-          <label>PDF Term
-            <select v-model="reportTerm">
-              <option>Quarter 1</option>
-              <option>Quarter 2</option>
-              <option>Quarter 3</option>
-              <option>Quarter 4</option>
-              <option>Semester 1</option>
-              <option>Semester 2</option>
-            </select>
-          </label>
-          <button type="button" @click="downloadStudentReportPdf">Download PDF</button>
-        </div>
-        <div v-if="reportCard" class="student-course-grid">
-          <article v-for="term in reportCard.terms" :key="term.term" class="permission-card">
-            <div class="permission-card-header">
-              <h3>{{ term.term }}</h3>
-              <span class="status">GPA {{ term.gpa?.gpa ?? 'N/A' }}</span>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Course</th><th>Final</th><th>Applied Weight</th><th>Missing</th></tr></thead>
-                <tbody>
-                  <tr v-for="course in term.courses" :key="`${term.term}-${course.section.id}`">
-                    <td>{{ course.course.code }} - {{ course.course.name }}</td>
-                    <td>{{ course.report.final_grade }}</td>
-                    <td>{{ course.report.total_applied_weight }}</td>
-                    <td>{{ course.report.missing_scores.join(', ') }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section v-if="activeTab === 'teacher-summary' && user?.user_type === 'teacher'" class="workspace">
-        <div class="crud-form">
-          <label>Course
-            <select v-model="reportSectionId" required>
-              <option value="">Select course</option>
-              <option v-for="course in teacherCourses" :key="course.id" :value="course.id">
-                {{ course.name }} - {{ course.class_section?.class_name || tr('بدون اسم') }}
-              </option>
-            </select>
-          </label>
-          <label>Term
-            <select v-model="reportTerm">
-              <option>Quarter 1</option>
-              <option>Quarter 2</option>
-              <option>Quarter 3</option>
-              <option>Quarter 4</option>
-            </select>
-          </label>
-          <button type="button" @click="loadTeacherSummary">Load Summary</button>
-        </div>
-
-        <div v-if="teacherSummary.length" class="table-wrap">
-          <table>
-            <thead><tr><th>Student</th><th>Final</th><th>Applied Weight</th><th>Missing</th></tr></thead>
-            <tbody>
-              <tr v-for="row in teacherSummary" :key="row.student_profile.id">
-                <td>{{ row.student_profile.user.name }}</td>
-                <td>{{ row.report.final_grade }}</td>
-                <td>{{ row.report.total_applied_weight }}</td>
-                <td>{{ row.report.missing_scores.join(', ') }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <PublishedReportCards
+          :publications="studentPublications"
+          :student-name="user.name"
+          @download="downloadPublishedReportCard"
+        />
       </section>
 
       <section v-if="activeTab === 'admin-grade-report' && can('students.view')" class="workspace">
@@ -3658,6 +3697,7 @@ loadCurrentUser()
             <select v-model="reportCardForm.type">
               <option value="quarter">{{ tr('تقرير Quarter') }}</option>
               <option value="semester">{{ tr('تقرير سيمستر') }}</option>
+              <option value="final">{{ tr('التقرير النهائي للسنة') }}</option>
             </select>
           </label>
           <label v-if="reportCardForm.type === 'quarter'">{{ tr('الفترة (Quarter)') }}
@@ -3668,7 +3708,7 @@ loadCurrentUser()
               <option>Quarter 4</option>
             </select>
           </label>
-          <label v-else>{{ tr('السيمستر') }}
+          <label v-else-if="reportCardForm.type === 'semester'">{{ tr('السيمستر') }}
             <select v-model="reportCardForm.semester">
               <option :value="1">{{ tr('السيمستر الأول (Quarter 1 + Quarter 2)') }}</option>
               <option :value="2">{{ tr('السيمستر الثاني (Quarter 3 + Quarter 4)') }}</option>
@@ -3734,55 +3774,6 @@ loadCurrentUser()
                 <td>{{ row.subject }}</td>
                 <td>{{ row.term }}</td>
                 <td>{{ row.missing_items.join('، ') }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section v-if="gradeReport" class="workspace report-panel">
-        <div class="dashboard-header">
-          <div>
-            <p class="eyebrow">Final Grade</p>
-            <h2>{{ gradeReport.final_grade }} / 100</h2>
-          </div>
-          <span class="status">{{ gradeReport.total_applied_weight }}% applied</span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Category</th><th>Weight</th><th>Average</th><th>Weighted Points</th><th>Items</th></tr></thead>
-            <tbody>
-              <tr v-for="category in gradeReport.category_breakdown" :key="category.category_name">
-                <td>{{ category.category_name }}</td>
-                <td>{{ category.weight }}</td>
-                <td>{{ category.average_percent ?? 'Missing' }}</td>
-                <td>{{ category.weighted_points }}</td>
-                <td>{{ category.items.length }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="muted">Missing scores: {{ gradeReport.missing_scores.join(', ') || 'None' }}</p>
-      </section>
-
-      <section v-if="gpaReport?.term_gpa" class="workspace report-panel">
-        <div class="dashboard-header">
-          <div>
-            <p class="eyebrow">GPA</p>
-            <h2>{{ gpaReport.term_gpa.gpa ?? 'N/A' }}</h2>
-          </div>
-          <span class="status">{{ gpaReport.term_gpa.term }}</span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Course</th><th>AP</th><th>Credits</th><th>Final</th><th>Points</th></tr></thead>
-            <tbody>
-              <tr v-for="course in gpaReport.term_gpa.courses" :key="course.course_id">
-                <td>{{ course.course_code }} - {{ course.course_name }}</td>
-                <td>{{ course.is_ap ? 'Yes' : 'No' }}</td>
-                <td>{{ course.credit_hours }}</td>
-                <td>{{ course.final_grade }}</td>
-                <td>{{ course.gpa_points }}</td>
               </tr>
             </tbody>
           </table>

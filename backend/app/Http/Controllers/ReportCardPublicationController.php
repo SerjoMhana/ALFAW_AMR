@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CourseSection;
 use App\Models\ReportCardPublication;
 use App\Models\StudentProfile;
-use App\Services\ReportCardService;
+use App\Models\SchoolSetting;
+use App\Services\ClassReportCardService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ReportCardPublicationController extends Controller
 {
-    public function __construct(private readonly ReportCardService $reportCards) {}
+    public function __construct(private readonly ClassReportCardService $reportCards) {}
 
     /**
      * Everything the admin has released for a class, so the UI can show which
@@ -94,8 +95,28 @@ class ReportCardPublicationController extends Controller
             'This report card has not been published for this student.',
         );
 
-        $data = $this->reportCards->build($studentProfile, $publication->type, $publication->period);
-        $pdf = Pdf::loadView('pdf.report-card', $data)->setPaper('letter');
+        $classSection = $publication->courseSection()->firstOrFail();
+
+        if ($publication->type === ReportCardPublication::TYPE_FINAL) {
+            $report = $this->reportCards->finalReport($classSection, $studentProfile);
+            $pdf = Pdf::loadView('pdf.semester-report', [
+                'reports' => [$report],
+                'semester' => null,
+                'isFinal' => true,
+                'reportMessage' => SchoolSetting::semesterReportMessage(),
+            ])->setPaper('a4');
+        } elseif ($publication->type === ReportCardPublication::TYPE_SEMESTER) {
+            $semester = (int) str_replace('Semester ', '', $publication->period);
+            $report = $this->reportCards->semesterReport($classSection, $studentProfile, $semester);
+            $pdf = Pdf::loadView('pdf.semester-report', [
+                'reports' => [$report],
+                'semester' => $semester,
+                'reportMessage' => SchoolSetting::semesterReportMessage(),
+            ])->setPaper('a4');
+        } else {
+            $report = $this->reportCards->quarterReport($classSection, $studentProfile, $publication->period);
+            $pdf = Pdf::loadView('pdf.quarter-report', ['reports' => [$report]])->setPaper('a4');
+        }
 
         return $pdf->download(
             'report-card-'.$studentProfile->student_number.'-'.str_replace(' ', '-', $publication->period).'.pdf',
@@ -122,7 +143,7 @@ class ReportCardPublicationController extends Controller
     private function validatePeriod(Request $request): array
     {
         return $request->validate([
-            'type' => ['required', Rule::in([ReportCardPublication::TYPE_QUARTER, ReportCardPublication::TYPE_SEMESTER])],
+            'type' => ['required', Rule::in([ReportCardPublication::TYPE_QUARTER, ReportCardPublication::TYPE_SEMESTER, ReportCardPublication::TYPE_FINAL])],
             'term' => ['required_if:type,quarter', Rule::in(['Quarter 1', 'Quarter 2', 'Quarter 3', 'Quarter 4'])],
             'semester' => ['required_if:type,semester', Rule::in([1, 2])],
         ]);

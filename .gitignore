@@ -17,10 +17,15 @@
 *.sqlite3
 *.sql
 *.sql.gz
+*.xlsx
+*.xlsm
 
 # Dependencies and build output
 /node_modules
 /vendor
+/tmp/
+/output/
+/edited_health_forms/
 
 # Editors and machines
 .DS_Store

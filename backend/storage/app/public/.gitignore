@@ -1,2 +1,6 @@
 *
 !.gitignore
+!report-card/
+!report-card/*.png
+!report-card/*.jpg
+!report-card/*.jpeg

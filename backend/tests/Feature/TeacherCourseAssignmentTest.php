@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\CourseSection;
 use App\Models\User;
@@ -93,6 +94,37 @@ class TeacherCourseAssignmentTest extends TestCase
             ->assertJsonPath('data.0.id', $math->id);
 
         $this->assertNotNull($english->fresh());
+    }
+
+    public function test_grade_entry_context_uses_the_admins_active_year_automatically(): void
+    {
+        AcademicYear::create(['name' => '2025-2026', 'is_active' => false]);
+        AcademicYear::create(['name' => '2026-2027', 'is_active' => true]);
+        $teacher = $this->user('teacher', 'teacher@example.com');
+        [$current] = $this->subjects();
+        $current->update(['teacher_id' => $teacher->id]);
+
+        $pastSection = CourseSection::create([
+            'section_code' => 'G9-OLD',
+            'class_name' => 'G9',
+            'academic_year' => '2025-2026',
+            'term' => 'Quarter 1',
+        ]);
+        Course::create([
+            'code' => 'OLD-MATH',
+            'name' => 'Old Mathematics',
+            'grade_level' => 'G9',
+            'class_section_id' => $pastSection->id,
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $this->withToken($teacher->createToken('test')->plainTextToken)
+            ->getJson('/api/grade-entry/context')
+            ->assertOk()
+            ->assertJsonPath('academic_year', '2026-2027')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $current->id)
+            ->assertJsonPath('data.0.class_section.academic_year', '2026-2027');
     }
 
     public function test_assignment_endpoint_rejects_non_teacher_users(): void

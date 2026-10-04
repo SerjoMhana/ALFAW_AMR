@@ -65,7 +65,11 @@ class PhaseSixGradeCalculationTest extends TestCase
         $this->withToken($studentProfile->user->createToken('own')->plainTextToken)
             ->getJson("/api/student/courses/{$course->id}/grade-report?term=Quarter%201")
             ->assertOk()
-            ->assertJsonPath('data.final_grade', 27);
+            ->assertJsonPath('data.final_grade', 27)
+            ->assertJsonPath('data.entry_table.students.0.student_profile.id', $studentProfile->id)
+            ->assertJsonPath('data.entry_table.submission.can_edit', false)
+            ->assertJsonPath('data.entry_table.submission.can_submit', false)
+            ->assertJsonCount(1, 'data.entry_table.students');
     }
 
     public function test_student_cannot_view_section_report_when_not_enrolled(): void

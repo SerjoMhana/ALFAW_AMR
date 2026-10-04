@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AttendanceRecord;
 use App\Models\Course;
 use App\Models\CourseSection;
 use App\Models\StudentProfile;
@@ -68,14 +69,20 @@ class ClassReportCardService
                 'name' => $course->name,
                 'grade' => $grade,
                 'letter' => self::letterGrade($grade),
+                'credit_hours' => (float) $course->credit_hours,
             ];
         })->values()->all();
+
+        $summary = $this->summary($subjects, 'grade');
 
         return [
             'student_profile' => $studentProfile,
             'class_section' => $classSection,
             'term' => $term,
             'subjects' => $subjects,
+            'gpa' => $this->creditWeightedGpa($subjects),
+            'summary' => $summary,
+            'absence_total' => $this->absenceTotal($classSection, $studentProfile),
         ];
     }
 
@@ -91,29 +98,15 @@ class ClassReportCardService
                 $classSection->academic_year,
             )['final_grade'], 1);
 
-            if ($semester === 1) {
-                $q1 = $quarterGrade('Quarter 1');
-                $q2 = $quarterGrade('Quarter 2');
-                $final = round(($q1 + $q2) / 2, 1);
-
-                return [
-                    'name' => $course->name,
-                    'credit_hours' => (float) $course->credit_hours,
-                    'columns' => [$q1, $q2],
-                    'final' => $final,
-                    'letter' => self::letterGrade($final),
-                    'credit_earned' => null,
-                ];
-            }
-
-            $semester1 = round(($quarterGrade('Quarter 1') + $quarterGrade('Quarter 2')) / 2, 1);
-            $semester2 = round(($quarterGrade('Quarter 3') + $quarterGrade('Quarter 4')) / 2, 1);
-            $final = round(($semester1 + $semester2) / 2, 1);
+            $terms = self::SEMESTER_TERMS[$semester];
+            $firstQuarter = $quarterGrade($terms[0]);
+            $secondQuarter = $quarterGrade($terms[1]);
+            $final = round(($firstQuarter + $secondQuarter) / 2, 1);
 
             return [
                 'name' => $course->name,
                 'credit_hours' => (float) $course->credit_hours,
-                'columns' => [$semester1, $semester2],
+                'columns' => [$firstQuarter, $secondQuarter],
                 'final' => $final,
                 'letter' => self::letterGrade($final),
                 'credit_earned' => $final >= 60 ? (float) $course->credit_hours : 0.0,
@@ -126,7 +119,79 @@ class ClassReportCardService
             'semester' => $semester,
             'subjects' => $subjects,
             'gpa' => $this->creditWeightedGpa($subjects),
+            'summary' => $this->summary($subjects, 'final'),
+            'absence_total' => $this->absenceTotal($classSection, $studentProfile),
         ];
+    }
+
+    /**
+     * The annual report is deliberately limited to this academic year:
+     * Semester 1 = average of Q1/Q2, Semester 2 = average of Q3/Q4,
+     * and the final subject grade is the average of those two semesters.
+     */
+    public function finalReport(CourseSection $classSection, StudentProfile $studentProfile): array
+    {
+        $semester1 = $this->semesterReport($classSection, $studentProfile, 1);
+        $semester2 = $this->semesterReport($classSection, $studentProfile, 2);
+
+        $subjects = collect($semester1['subjects'])->map(function (array $subject, int $index) use ($semester2) {
+            $second = $semester2['subjects'][$index];
+            $final = round(($subject['final'] + $second['final']) / 2, 1);
+
+            return [
+                'name' => $subject['name'],
+                'credit_hours' => $subject['credit_hours'],
+                'columns' => [$subject['final'], $second['final']],
+                'final' => $final,
+                'letter' => self::letterGrade($final),
+                'credit_earned' => $final >= 60 ? $subject['credit_hours'] : 0.0,
+            ];
+        })->all();
+
+        return [
+            'student_profile' => $studentProfile,
+            'class_section' => $classSection,
+            'semester' => null,
+            'is_final' => true,
+            'subjects' => $subjects,
+            'gpa' => $this->creditWeightedGpa($subjects),
+            'summary' => $this->summary($subjects, 'final'),
+            'absence_total' => $semester1['absence_total'],
+        ];
+    }
+
+    /**
+     * Totals used by the reference-style report-card summary. Every examined
+     * subject is marked out of 100, while status follows the school's 60%
+     * passing threshold.
+     *
+     * @param  array<int, array<string, mixed>>  $subjects
+     * @return array{maximum: float, obtained: float, percentage: float, passed: bool}
+     */
+    private function summary(array $subjects, string $gradeKey): array
+    {
+        $maximum = count($subjects) * 100.0;
+        $obtained = round(array_sum(array_map(
+            fn (array $subject): float => (float) ($subject[$gradeKey] ?? 0),
+            $subjects,
+        )), 1);
+        $percentage = $maximum > 0 ? round(($obtained / $maximum) * 100, 1) : 0.0;
+
+        return [
+            'maximum' => $maximum,
+            'obtained' => $obtained,
+            'percentage' => $percentage,
+            'passed' => $percentage >= 60,
+        ];
+    }
+
+    private function absenceTotal(CourseSection $classSection, StudentProfile $studentProfile): int
+    {
+        return AttendanceRecord::query()
+            ->where('course_section_id', $classSection->id)
+            ->where('student_profile_id', $studentProfile->id)
+            ->whereIn('status', ['absent', 'excused'])
+            ->count();
     }
 
     /**

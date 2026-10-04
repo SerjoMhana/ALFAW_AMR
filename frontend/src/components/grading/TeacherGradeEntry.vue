@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useApi } from '../../api.js'
 import { notifyError, notifySuccess } from '../../notify.js'
 import GradeEntryTable from './GradeEntryTable.vue'
@@ -9,9 +9,8 @@ import { tr } from '../../phrases.js'
 const { api } = useApi()
 
 const sections = ref([])
-const academicYears = ref([])
 const selectedSectionId = ref('')
-const term = ref('Quarter 1')
+const term = ref('')
 const academicYear = ref('')
 const gradeData = ref(null)
 const loading = ref(false)
@@ -20,37 +19,24 @@ const submitting = ref(false)
 
 const terms = ['Quarter 1', 'Quarter 2', 'Quarter 3', 'Quarter 4']
 
-// Years to offer: the configured list when readable, otherwise whatever years
-// the teacher's own subjects belong to.
-const yearOptions = computed(() => [
-  ...new Set([
-    ...academicYears.value.map((year) => year.name),
-    ...sections.value.map((course) => course.class_section?.academic_year),
-  ].filter(Boolean)),
-])
-
 onMounted(async () => {
-  // Settled rather than all: /academic-years needs settings.view, which teachers
-  // lack, and that rejection must not take the course list down with it.
-  const [contextResult, yearsResult] = await Promise.allSettled([
-    api('/grade-entry/context'),
-    api('/academic-years'),
-  ])
-
-  if (contextResult.status === 'fulfilled') {
-    sections.value = contextResult.value.data
-  } else {
-    notifyError(contextResult.reason.message)
+  try {
+    const response = await api('/grade-entry/context')
+    sections.value = response.data
+    // The admin's active year is authoritative. Teachers neither choose nor
+    // override it; switching the year in Settings changes this automatically.
+    academicYear.value = response.academic_year
+      ?? sections.value[0]?.class_section?.academic_year
+      ?? ''
+  } catch (err) {
+    notifyError(err.message)
   }
-
-  if (yearsResult.status === 'fulfilled') {
-    academicYears.value = yearsResult.value.data
-  }
-
-  academicYear.value = academicYears.value.find((year) => year.is_active)?.name
-    ?? yearOptions.value[0]
-    ?? ''
 })
+
+function onTermChange() {
+  selectedSectionId.value = ''
+  gradeData.value = null
+}
 
 function onSectionChange() {
   const course = sections.value.find((item) => String(item.id) === String(selectedSectionId.value))
@@ -116,31 +102,33 @@ async function handleSubmit(scores) {
 
 <template>
   <div class="workspace">
+    <p class="active-year-line">
+      <strong>{{ tr('السنة الدراسية المفعّلة:') }}</strong>
+      {{ academicYear || tr('لا توجد سنة مفعّلة') }}
+    </p>
     <div class="crud-form">
-      <label>Academic Year
-        <select v-model="academicYear">
-          <option value="">Select academic year</option>
-          <option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
+      <label>{{ tr('الكورتر') }}
+        <select v-model="term" @change="onTermChange">
+          <option value="">{{ tr('اختر الكورتر أولاً') }}</option>
+          <option v-for="value in terms" :key="value" :value="value">{{ value }}</option>
         </select>
       </label>
-      <label>Term
-        <select v-model="term">
-          <option v-for="value in terms" :key="value">{{ value }}</option>
-        </select>
-      </label>
-      <label>Course
-        <select v-model="selectedSectionId" @change="onSectionChange">
-          <option value="">Select course</option>
+      <label>{{ tr('الفصل والمادة') }}
+        <select v-model="selectedSectionId" :disabled="!term" @change="onSectionChange">
+          <option value="">{{ term ? tr('اختر الفصل والمادة') : tr('اختر الكورتر أولاً') }}</option>
           <option v-for="course in sections" :key="course.id" :value="course.id">
-            {{ course.class_section?.class_name || course.class_section?.section_code }} - {{ course.name }}
-            {{ course.grade_tier ? `(${course.grade_tier.name})` : '(no grade tier configured)' }}
+            {{ course.class_section?.class_name || course.class_section?.section_code }} — {{ course.name }}
           </option>
         </select>
       </label>
-      <button type="button" :disabled="!selectedSectionId || !academicYear" @click="loadGradeEntry">
-        {{ loading ? 'Loading...' : 'Load Grade Entry' }}
+      <button type="button" :disabled="!term || !selectedSectionId || !academicYear" @click="loadGradeEntry">
+        {{ loading ? tr('جاري التحميل...') : tr('عرض سجل الدرجات') }}
       </button>
     </div>
+
+    <p v-if="academicYear && !sections.length" class="notice warn">
+      {{ tr('لا توجد مواد مرتبطة بحسابك في السنة الدراسية المفعّلة.') }}
+    </p>
 
 
     <p v-if="gradeData?.credits" class="sheet-credits">
@@ -171,6 +159,11 @@ async function handleSubmit(scores) {
 .sheet-credits {
   color: var(--app-text);
   font-size: 13px;
+}
+
+.active-year-line {
+  margin: 0;
+  color: var(--app-text);
 }
 
 .notice.warn {

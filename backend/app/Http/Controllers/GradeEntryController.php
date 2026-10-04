@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BulkSaveGradeEntryRequest;
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\GradeAuditLog;
@@ -25,13 +26,21 @@ class GradeEntryController extends Controller
         $user = $request->user();
 
         if ($user->user_type === 'teacher') {
+            $activeYear = AcademicYear::currentName();
             $courses = Course::query()
                 ->with('classSection')
                 ->where('teacher_id', $user->id)
+                ->when($activeYear, fn ($query) => $query->whereHas(
+                    'classSection',
+                    fn ($section) => $section->where('academic_year', $activeYear),
+                ))
                 ->latest()
                 ->get();
 
-            return response()->json(['data' => $this->withGradeTier($courses)]);
+            return response()->json([
+                'data' => $this->withGradeTier($courses),
+                'academic_year' => $activeYear,
+            ]);
         }
 
         abort_unless($user->isAdmin() || $user->hasPermission('admin_manage_grades'), 403);

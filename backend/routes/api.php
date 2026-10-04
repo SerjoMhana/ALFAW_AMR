@@ -252,6 +252,14 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function (
         ->middleware('permission:settings.manage');
     Route::delete('/report-card-template/logo', [ReportCardTemplateController::class, 'destroyLogo'])
         ->middleware('permission:settings.manage');
+    Route::post('/report-card-template/secondary-logo', [ReportCardTemplateController::class, 'uploadSecondaryLogo'])
+        ->middleware('permission:settings.manage');
+    Route::delete('/report-card-template/secondary-logo', [ReportCardTemplateController::class, 'destroySecondaryLogo'])
+        ->middleware('permission:settings.manage');
+    Route::post('/report-card-template/third-logo', [ReportCardTemplateController::class, 'uploadThirdLogo'])
+        ->middleware('permission:settings.manage');
+    Route::delete('/report-card-template/third-logo', [ReportCardTemplateController::class, 'destroyThirdLogo'])
+        ->middleware('permission:settings.manage');
     Route::post('/report-card-template/reset', [ReportCardTemplateController::class, 'reset'])
         ->middleware('permission:settings.manage');
 
@@ -441,4 +449,5 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function (
 
     Route::get('/admin/classes/{courseSection}/report-cards/quarter/pdf', [ClassReportCardController::class, 'quarter']);
     Route::get('/admin/classes/{courseSection}/report-cards/semester/pdf', [ClassReportCardController::class, 'semester']);
+    Route::get('/admin/classes/{courseSection}/report-cards/final/pdf', [ClassReportCardController::class, 'final']);
 });

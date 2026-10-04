@@ -49,13 +49,7 @@ class ClassReportCardController extends Controller
         $semester = (int) $validated['semester'];
         $students = $this->resolveStudents($courseSection, $validated['student_profile_id'] ?? null);
 
-        // Semester 2's report also displays the Semester 1 average, so the
-        // whole year's quarters must be complete for it.
-        $requiredTerms = $semester === 1
-            ? ClassReportCardService::SEMESTER_TERMS[1]
-            : [...ClassReportCardService::SEMESTER_TERMS[1], ...ClassReportCardService::SEMESTER_TERMS[2]];
-
-        $this->ensureComplete($courseSection, $students, $requiredTerms);
+        $this->ensureComplete($courseSection, $students, ClassReportCardService::SEMESTER_TERMS[$semester]);
 
         $reports = $students
             ->map(fn (StudentProfile $student) => $this->reports->semesterReport($courseSection, $student, $semester))
@@ -68,6 +62,30 @@ class ClassReportCardController extends Controller
         ])->setPaper('a4');
 
         return $pdf->download($this->fileName($courseSection, $students, "semester-{$semester}"));
+    }
+
+    public function final(Request $request, CourseSection $courseSection): Response
+    {
+        $this->authorizeAdmin($request);
+        $validated = $request->validate([
+            'student_profile_id' => ['nullable', 'integer', 'exists:student_profiles,id'],
+        ]);
+        $students = $this->resolveStudents($courseSection, $validated['student_profile_id'] ?? null);
+        $this->ensureComplete($courseSection, $students, [
+            ...ClassReportCardService::SEMESTER_TERMS[1],
+            ...ClassReportCardService::SEMESTER_TERMS[2],
+        ]);
+        $reports = $students
+            ->map(fn (StudentProfile $student) => $this->reports->finalReport($courseSection, $student))
+            ->all();
+        $pdf = Pdf::loadView('pdf.semester-report', [
+            'reports' => $reports,
+            'semester' => null,
+            'isFinal' => true,
+            'reportMessage' => SchoolSetting::semesterReportMessage(),
+        ])->setPaper('a4');
+
+        return $pdf->download($this->fileName($courseSection, $students, 'final'));
     }
 
     private function authorizeAdmin(Request $request): void

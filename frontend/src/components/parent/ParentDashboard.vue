@@ -3,21 +3,27 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useApi } from '../../api.js'
 import { notifyError } from '../../notify.js'
 import StudentGradeCards from '../shared/StudentGradeCards.vue'
+import PublishedReportCards from '../shared/PublishedReportCards.vue'
 import { STATUS_LABELS, STATUS_TONES, money } from '../finance/money.js'
 import { tr } from '../../phrases.js'
 
 const { api, apiBlob } = useApi()
 
+const props = defineProps({
+  view: { type: String, default: 'overview' },
+})
+
 const termLabels = {
-  'Quarter 1': 'الفصل الأول',
-  'Quarter 2': 'الفصل الثاني',
-  'Quarter 3': 'الفصل الثالث',
-  'Quarter 4': 'الفصل الرابع',
+  'Quarter 1': 'الكورتر الأول',
+  'Quarter 2': 'الكورتر الثاني',
+  'Quarter 3': 'الكورتر الثالث',
+  'Quarter 4': 'الكورتر الرابع',
 }
 
 const children = ref([])
 const selectedChildId = ref('')
 const selectedTerm = ref('')
+const selectedCourseId = ref('')
 const grades = ref(null)
 const reportCards = ref([])
 const balance = ref(null)
@@ -27,6 +33,9 @@ const selectedChild = computed(() =>
   children.value.find((child) => String(child.id) === String(selectedChildId.value)) ?? null,
 )
 const openTerms = computed(() => grades.value?.open_terms ?? selectedChild.value?.open_terms ?? [])
+const selectedCourse = computed(() => grades.value?.courses?.find(
+  (item) => String(item.course?.id) === String(selectedCourseId.value),
+) ?? null)
 
 onMounted(async () => {
   try {
@@ -42,11 +51,14 @@ watch(selectedChildId, async (childId) => {
   grades.value = null
   reportCards.value = []
   balance.value = null
+  selectedCourseId.value = ''
   if (!childId) return
 
   // Default to the first quarter the admin has opened for this child.
   selectedTerm.value = selectedChild.value?.open_terms?.[0] ?? ''
-  await Promise.all([loadGrades(), loadReportCards(), loadBalance()])
+  if (props.view === 'grades') await loadGrades()
+  if (props.view === 'reports') await loadReportCards()
+  if (props.view === 'overview') await loadBalance()
 })
 
 async function loadBalance() {
@@ -62,7 +74,8 @@ async function loadBalance() {
 }
 
 watch(selectedTerm, (term) => {
-  if (term && selectedChildId.value) loadGrades()
+  selectedCourseId.value = ''
+  if (props.view === 'grades' && term && selectedChildId.value) loadGrades()
 })
 
 async function loadGrades() {
@@ -93,13 +106,23 @@ async function loadReportCards() {
 }
 
 async function downloadReportCard(publication) {
-
   try {
     const blob = await apiBlob(`/parent/children/${selectedChildId.value}/report-cards/${publication.id}/pdf`)
-    window.open(URL.createObjectURL(blob), '_blank')
+    downloadBlob(blob, `report-${selectedChild.value?.name || 'student'}-${publication.period}.pdf`)
   } catch (err) {
     notifyError(err.message)
   }
+}
+
+function downloadBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename.replace(/\s+/g, '-')
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 </script>
 
@@ -129,32 +152,40 @@ async function downloadReportCard(publication) {
       </article>
 
       <template v-if="selectedChild">
-        <div class="crud-form">
-          <label>{{ tr('الفصل الدراسي') }}
-            <select v-model="selectedTerm">
-              <option v-for="term in openTerms" :key="term" :value="term">
-                {{ termLabels[term] || term }}
-              </option>
-            </select>
-          </label>
-        </div>
+        <template v-if="props.view === 'grades'">
+          <div class="crud-form">
+            <label>{{ tr('الكورتر') }}
+              <select v-model="selectedTerm">
+                <option value="">{{ tr('اختر الكورتر') }}</option>
+                <option v-for="term in openTerms" :key="term" :value="term">
+                  {{ termLabels[term] || term }}
+                </option>
+              </select>
+            </label>
+            <label>{{ tr('المادة') }}
+              <select v-model="selectedCourseId" :disabled="!selectedTerm || loading">
+                <option value="">{{ tr('اختر المادة') }}</option>
+                <option v-for="item in grades?.courses || []" :key="item.course.id" :value="item.course.id">
+                  {{ item.course.name }}
+                </option>
+              </select>
+            </label>
+          </div>
 
-        <p v-if="!openTerms.length" class="notice warn">
-          {{ tr('لم تفتح إدارة المدرسة أي فصل دراسي بعد. ستظهر الدرجات هنا فور فتحه.') }}
-        </p>
+          <p v-if="!openTerms.length" class="notice warn">
+            {{ tr('لم تفتح إدارة المدرسة أي كورتر بعد. ستظهر الدرجات هنا فور فتحه.') }}
+          </p>
+          <p v-else-if="loading" class="muted">{{ tr('جاري تحميل المواد والدرجات...') }}</p>
 
-        <template v-else>
-          <p v-if="loading" class="muted">{{ tr('جاري تحميل الدرجات...') }}</p>
+          <article v-else-if="selectedCourse" class="form-card">
+            <h3>{{ grades.student.name }} — {{ selectedCourse.course.name }} — {{ termLabels[grades.term] || grades.term }}</h3>
+            <StudentGradeCards :courses="[selectedCourse]" />
+          </article>
 
-          <template v-else-if="grades">
-            <article class="form-card">
-              <h3>{{ tr('درجات') }} {{ grades.student.name }} — {{ termLabels[grades.term] || grades.term }}</h3>
-              <StudentGradeCards :courses="grades.courses" />
-            </article>
-          </template>
+          <p v-else-if="selectedTerm" class="muted">{{ tr('اختر المادة لعرض درجات الطالب.') }}</p>
         </template>
 
-        <article v-if="balance" class="form-card">
+        <article v-if="props.view === 'overview' && balance" class="form-card">
           <h3>{{ tr('الحساب المالي') }}</h3>
 
           <p v-if="balance.totals.overdue > 0" class="notice error">
@@ -218,28 +249,12 @@ async function downloadReportCard(publication) {
           </template>
         </article>
 
-        <article v-if="reportCards.length" class="form-card">
-          <h3>{{ tr('كشوف الدرجات المتاحة') }}</h3>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>{{ tr('الفترة') }}</th><th>{{ tr('الفصل') }}</th><th>{{ tr('تاريخ النشر') }}</th><th></th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="publication in reportCards" :key="publication.id">
-                  <td>{{ termLabels[publication.period] || publication.period }}</td>
-                  <td>{{ publication.course_section?.class_name || publication.course_section?.section_code }}</td>
-                  <td>{{ publication.published_at }}</td>
-                  <td>
-                    <button type="button" class="secondary compact" @click="downloadReportCard(publication)">
-                      {{ tr('تحميل PDF') }}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <PublishedReportCards
+          v-if="props.view === 'reports'"
+          :publications="reportCards"
+          :student-name="selectedChild.name"
+          @download="downloadReportCard"
+        />
       </template>
     </template>
   </div>

@@ -29,13 +29,40 @@ class GradeReportController extends Controller
             'هذا الفصل الدراسي غير متاح للاطلاع بعد.',
         );
 
+        $report = $this->grades->calculateStudentTermGrade(
+            $studentProfile,
+            $course,
+            $term,
+            $academicYear,
+        );
+        $gradeTier = $this->grades->getGradeTierByStudentGrade($studentProfile) ?? $course->gradeTier();
+        $categories = $gradeTier
+            ? $this->grades->getGradingStructureByTier($gradeTier)
+            : collect();
+        $scores = collect($report['category_breakdown'])
+            ->flatMap(fn (array $category) => $category['items'])
+            ->mapWithKeys(fn (array $item) => [$item['grading_item_id'] => $item['score_obtained']]);
+
+        $studentProfile->loadMissing('user:id,name');
+
         return response()->json([
-            'data' => $this->grades->calculateStudentTermGrade(
-                $studentProfile,
-                $course,
-                $term,
-                $academicYear,
-            ),
+            'data' => [
+                ...$report,
+                // Same shape consumed by the teacher's grade-entry table, but
+                // with this student as the only row and editing forced off.
+                'entry_table' => [
+                    'categories' => $categories,
+                    'students' => [[
+                        'student_profile' => $studentProfile,
+                        'scores' => $scores,
+                    ]],
+                    'submission' => [
+                        'can_edit' => false,
+                        'can_submit' => false,
+                        'is_locked' => false,
+                    ],
+                ],
+            ],
         ]);
     }
 
