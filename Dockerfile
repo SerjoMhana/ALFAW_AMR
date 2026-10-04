@@ -9,11 +9,6 @@ ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
-FROM composer:2 AS vendor
-WORKDIR /build/backend
-COPY backend/composer.json backend/composer.lock ./
-RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
-
 FROM php:8.3-apache-bookworm
 
 RUN apt-get update \
@@ -32,8 +27,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY backend/composer.json backend/composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
 COPY backend/ ./
-COPY --from=vendor /build/backend/vendor ./vendor
 COPY --from=frontend /build/frontend/dist/ ./public/
 COPY deploy/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 COPY deploy/start-render.sh /usr/local/bin/start-render
