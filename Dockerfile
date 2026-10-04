@@ -22,7 +22,7 @@ RUN apt-get update \
         libzip-dev \
         unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" bcmath gd intl mbstring opcache pdo_mysql zip \
+    && docker-php-ext-install -j"$(nproc)" bcmath calendar gd intl mbstring opcache pdo_mysql zip \
     && a2enmod headers rewrite \
     && rm -rf /var/lib/apt/lists/*
 
