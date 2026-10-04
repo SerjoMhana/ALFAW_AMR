@@ -31,7 +31,11 @@ chown -R www-data:www-data storage bootstrap/cache
 
 php artisan package:discover --ansi
 php artisan config:clear
-php artisan migrate --force
+
+if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+    php artisan migrate --force
+fi
+
 php artisan storage:link >/dev/null 2>&1 || true
 php artisan config:cache
 php artisan route:cache

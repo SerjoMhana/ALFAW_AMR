@@ -39,6 +39,8 @@ services:
         value: "false"
       - key: RUN_SCHEDULER
         value: "false"
+      - key: RUN_MIGRATIONS
+        value: "false"
       - key: DB_CONNECTION
         value: mysql
       - key: DB_HOST
